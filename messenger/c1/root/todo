@@ -1,0 +1,12 @@
+? - do nessesary use not blocked client_nb.c
+
+server:
+
+1. when i send to not exist user was trouble on server work : was disconnect real user without normal work;
+2. 
+
+client:
+
+1. if server return anything => we must show it (in time) and not deleting the text from "form"(command line)
+2. 
+
