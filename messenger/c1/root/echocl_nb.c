@@ -13,6 +13,12 @@
 
 #include <sys/time.h>
 #include <fcntl.h>
+#include <signal.h> // for kill()
+
+#define true            1
+#define false           0
+
+typedef unsigned char bool;
 
 int main(int argc, char **argv) {
     struct sockaddr_in addr;    /* для адреса сервера */
@@ -58,35 +64,53 @@ int main(int argc, char **argv) {
 
     printf("Connected to Echo server. Type /q to quit.\n");
     
+    // here will created two threads or proccess
+
+    pid_t pid_cur = 0; // it is int type
+    bool is_parent = false;
+    pid_cur = fork(); // return 0 for new process
+    if (pid_cur > 0)
+        is_parent = true;
+    pid_cur = getpid();
+
     while (1) {
-        len = recv(sk, buf, BUFSIZE, 0);
-        if (len < 0) {
-            if(errno != EWOULDBLOCK){
-                perror("recv");
+
+        if (!is_parent)
+        {
+            len = recv(sk, buf, BUFSIZE, 0);
+            if (len < 0) {
+                if(errno != EWOULDBLOCK){
+                    perror("recv");
+                    exit(1);
+                }
+            } else if (len == 0) {
+                printf("Remote host has closed the connection (empty message).\n");
                 exit(1);
+            } else if (len > 0){
+                buf[len] = '\0';
+                printf("recieve from server:\n << %s\n", buf);
             }
-        } else if (len == 0) {
-            printf("Remote host has closed the connection (empty message).\n");
-            exit(1);
-        }
+            // her must be check that parent process is ending!!!
+            // her must be check that parent process is ending!!!
+            // her must be check that parent process is ending!!!
 
-        buf[len] = '\0';
-        printf("<< %s\n", buf);
+        } 
+        else 
+        {       // only parent process
+            printf("(ready to new command)\n");
+            fgets(buf, BUFSIZE, stdin);
+            if (strlen(buf) <= 1) // only enter \n
+                continue;
+            if (strcmp(buf, "/q\n") == 0)
+                break;
 
-        printf("> ");
-        fgets(buf, BUFSIZE, stdin);
-        if (strlen(buf) == 0)
-            continue;
-        if (strcmp(buf, "/q\n") == 0)
-            break;
-
-        if (send(sk, buf, strlen(buf), 0) < 0) {
-            if(errno != EWOULDBLOCK){
-                perror("send");
-                exit(1);
+            if (send(sk, buf, strlen(buf), 0) < 0) {
+                if(errno != EWOULDBLOCK){
+                    perror("send");
+                    exit(1);
+                }
             }
         }
-        
     }
 
     sprintf(buf, "/q");
@@ -97,7 +121,15 @@ int main(int argc, char **argv) {
             perror("send");
             exit(1);
         }
+        else
+            break;
     }
     close(sk);
+
+    printf("killing proc %d \n", pid_cur);
+    kill(pid_cur, SIGTERM);                 // pid_cur == getpid()
+    if (is_parent)
+        printf("killed ok\n");
+
     return 0;
 }

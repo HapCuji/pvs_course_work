@@ -12,6 +12,9 @@
 
 #include <time.h>
 
+#include <netdb.h>
+
+
 int usage(char *name)
 {
     fprintf(stderr, "Usage: %s <port> <delay_sec> [max_packets]\n", basename(name));

@@ -1,12 +1,15 @@
 /* Простейший TCP-сервер, отправляющий все полученные данные обратно клиенту */
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <string.h>
+
 #include <time.h>
-#include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -17,28 +20,265 @@
 
 #include <ctype.h> // isdigit
 
-#define BUFSIZE         512
-#define MAX_SOCKETS     10 // FD_SETSIZE
+#include "echosrv.h"
 
-#define TIME_FOR_WAITING_MESSAGE_SEC    20         
-#define TIME_FOR_WAITING_MESSAGE_NSEC   800000  // add it to top value
+#include <signal.h> // for SIGTERM hhzz and kill()
+#include <mqueue.h> // for queue
 
-void data_init(void);
-void disconnect(int *socket_list, fd_set * socket_set, int deleted_i); //, int * n_socket)
-int sockets[MAX_SOCKETS];
-unsigned int n_socket;
+#include <pthread.h>
 
-struct client_info {
-    /* data */
-    char *name;
-};
+// ---------------
+// BUFFER
+// ---------------
+static inline int init_buffer(struct buffer *buf, size_t size)
+{
+    buf->pos = 0;
+    buf->buf = malloc(size);
+    if (!buf->buf){
+        erromsg("in malloc()");
+        buf->size = 0;
+        return -1;
+    }
+    buf->size = size;
+    return 0;
+}
 
-struct client_info clients[MAX_SOCKETS];
+
+static inline int cutn_buffer(struct buffer *buf, size_t len)
+{
+    if (buf->pos < len)
+        return -1; // too many cut's shift
+
+    char *cut = malloc(len+1);
+    if (!cut){
+        erromsg("in malloc()");
+        return NULL;
+    }
+    memcpy(cut, buf->buf, len);
+    cut[len] = '\0';
+    //      move to,  from,           , len shift
+    memmove(buf->buf, (buf->buf) + len, (buf->pos) - len);
+    buf->pos -= len;
+    
+    return cut;
+}
+
+/// -----------------------------
+// processees
+// ----------------------------
+
+// new one
+struct process_t* init_process(int* fd, pid_t pid_logger) 
+{
+    struct process_t* proc = (struct process_t*) malloc(sizeof *proc);
+    proc->pid = getpid();
+    proc->lgpid = pid_logger;
+    proc->worked = true;
+    // below logger must be NULL really nessesary??
+    proc->fd.listen = (fd == NULL) ? -1 : *fd;
+    proc->fd.max = (fd == NULL) ? 0 : *fd;
+    // list and sets of sockets
+    proc->s_list = NULL;  // not have sockets
+
+    proc->readfds = malloc(sizeof(*proc->readfds));
+    proc->writefds = malloc(sizeof(*proc->writefds));
+    char lgname[20];
+    sprintf(lgname, "/process%d", pid_logger);
+
+    // logger message queue init
+    if (getpid() == pid_logger) {   // logger
+        struct mq_attr attr;
+        attr.mq_flags = attr.mq_curmsgs = 0;
+        attr.mq_maxmsg = 10;
+        attr.mq_msgsize = BUFSIZE;
+        
+        // 0644: write, read, read  
+        proc->fd.logger = mq_open(lgname, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);    
+        // memset(lgname, 0x0, sizeof(lgname)); // for what?
+        
+        sprintf(lgname, "/exit%d", pid_logger);
+        proc->fd.cmd = mq_open(lgname, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
+
+    } else {    // workers or any others processes
+        // sleep(1);
+        // proc->fd.logger = mq_open(lgname, O_WRONLY);  // for send message to logger
+        // memset(lgname, 0x0, sizeof(lgname));
+        // sprintf(lgname, "/exit%d", pid_logger);
+        // proc->fd.cmd = mq_open(lgname, O_RDONLY);   // for receive command
+    }
+    if (proc->fd.logger == -1 || proc->fd.cmd == -1) {
+        perror("mq_open() failed");
+        free(proc);
+        proc = NULL;
+    } else if (proc->fd.logger > proc->fd.max || proc->fd.cmd > proc->fd.max) { // check fd message queue
+        proc->fd.max = (proc->fd.logger > proc->fd.cmd) ? proc->fd.logger 
+                                                        : proc->fd.cmd;
+        (proc->pid == pid_logger) ? printf("Logger is success started(%d): queue created \n", pid_logger) 
+                                : printf("Worker(%d): linked log queue\n", getpid());
+    }
+    return proc;
+}
+
+// cleanup
+void free_process(struct process_t* proc)
+{
+    // free sockets
+    // close_client_sockets_by_state(&proc->s_list, SOCKET_NOSTATE);
+    free(proc->readfds);
+    free(proc->writefds);
+    
+    // free message queue
+    if (proc->fd.logger != -1)
+        mq_close(proc->fd.logger);
+    if (proc->fd.cmd != -1)
+        mq_close(proc->fd.cmd);
+
+    if (proc->lgpid == proc->pid) {
+            // special close for logger proc
+        char* lgname = malloc(sizeof(*lgname) * 20);
+        sprintf(lgname, "/process%d", proc->lgpid);
+        mq_unlink(lgname);
+        memset(lgname, 0x0, strlen(lgname));
+        sprintf(lgname, "/exit%d", proc->lgpid);
+        mq_unlink(lgname);
+    }
+    free(proc);
+}
+
+//------------------------------
+// logger
+//------------------------------
+
+// save
+bool save_to_file(char* fname, char* txt, bool info)
+{
+    FILE* lf = fopen(fname, "a");
+    char msg[BUFSIZE];
+    if (!lf) {
+        sprintf(msg, "error opening log file(%s)", fname);
+        perror(msg);
+        return false;
+    }
+    // variable add '\n' or not
+    (txt[strlen(txt) - 1] == '\n') ? sprintf(msg, "%s", txt) 
+                                    : sprintf(msg, "%s\n", txt); 
+    // write with timetag
+    if (info) {
+        time_t ct = time(NULL);
+        char* t = ctime(&ct);
+        t[strlen(t) - 1] = '\0'; 
+
+        fprintf(lf, "[%s]: %s", t, msg);
+    } else  // without timetag
+        fprintf(lf, "%s", msg);
+        
+    fflush(lf);
+    fclose(lf);
+    return true;
+}
+
+
+// returns pid
+// input logger_pid
+// input fd (for socket only)
+pid_t create_logger()
+{
+    int fd_listen = NULL;
+    printf("value NULL == %d,  value NULL %d, addres %d\n", NULL, fd_listen, &fd_listen);
+    pid_t pid_logger = -1;
+
+    int pid = fork();
+    switch (pid) {
+        // process not created
+        case -1: 
+            printf("Server(%d): fork() failed\n", getpid()); 
+            break;
+        // process-child
+        case 0:
+            printf("logger pid (%d) is starting (getpid == %d)\n", pid, getpid());
+            body_logger(&fd_listen, &pid_logger);        // pid_logger == pid (will be) 
+            break;
+        // process-parent
+        default:
+            printf("Server(%d): create proccess(%d)\n", getpid(), pid);
+            break;
+    }
+    return pid;
+}
+
+
+void body_logger(int* fd, pid_t* pid)
+{
+    *pid = getpid(); // is == logger_pid
+    struct process_t* pr = init_process(fd, *pid);
+    if (pr != NULL) {
+        char msg[BUFSIZE];
+        sprintf(msg, "new log session(%d)", *pid);
+        LOG(msg);
+        // run
+        printf("Logger(%d): started work\n", *pid);
+        run_logger(pr);
+        free_process(pr);
+    } else 
+        printf("Logger(%d): failed init\n", *pid);
+
+    printf("Logger(%d): process killed\n", *pid);
+    kill(getpid(), SIGTERM);
+    LOG("end work logger (after kill)");
+}
+
+
+
+void run_logger(struct process_t* pr) 
+{
+	while (pr->worked) {
+		struct timeval tv;
+		tv.tv_sec = SELECT_TIMEOUT_LOGGER;
+		tv.tv_usec = 0;
+
+		FD_ZERO(pr->readfds);
+		FD_SET(pr->fd.logger, pr->readfds); // add fd(socket) logger in sets of read's fd
+        FD_SET(pr->fd.cmd, pr->readfds);    // add fd(socket) command message queue in sets of read's fd
+
+		switch(select(pr->fd.max + 1, pr->readfds, NULL, NULL, &tv)) {
+            case 0:
+                printf("Logger(%d): Timeout\n", getpid());
+                break;
+            default: {
+                char msg[BUFSIZE];
+                memset(msg, 0x0, sizeof(msg));
+                
+                printf("Logger(%d): i am in case(after select)\n", getpid());
+
+                if (FD_ISSET(pr->fd.cmd, pr->readfds)) {
+                    if (mq_receive(pr->fd.cmd, msg, BUFSIZE, NULL) >= 0) {
+                        if (strcmp(msg, "$") == 0) {    // msg start from $
+                            printf("Logger(%d): accept command on close\n", getpid());
+                            LOG("close logger");
+                            pr->worked = false;
+                        }
+                    }
+                }
+                if (FD_ISSET(pr->fd.logger, pr->readfds)) {
+                    if (mq_receive(pr->fd.logger, msg, BUFSIZE, NULL) >= 0) {
+                            printf("Logger(%d): received message from %s\n", getpid(), msg);
+                            LOG(msg);
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+//------------------------------
+//------------------------------
+
 
 
 void data_init(void){
     n_socket = 0;
 }
+char buf[BUFSIZE]; // global?
 
 int main(int argc, char **argv) {
     struct sockaddr_in addr;    /* для своего адреса */
@@ -73,6 +313,10 @@ int main(int argc, char **argv) {
         exit(1);
     }
     addr.sin_port = htons(port);
+    pid_t logger_pid = create_logger();            // logger process`
+    if (logger_pid <= 0)
+        printf("Logger out of create\n!!");
+    printf("logger return -- %d\n", logger_pid);
 
     /* связываем сокет с адресом и портом */
     if (bind(server_sk, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
@@ -83,7 +327,6 @@ int main(int argc, char **argv) {
     
     fd_set socket_set, ready_set;
     int len; // for receive
-    char buf[BUFSIZE];
     // int client_sk, sk;
     int flag_sk = 0;
     int flag_recv = 0;
@@ -101,7 +344,7 @@ int main(int argc, char **argv) {
     //     exit(1);
     // }
 
-    FD_ZERO(&socket_set);
+    FD_ZERO(&socket_set);   // new sets
     // fcntl(server_sk, F_SETFL, fcntl(server_sk, F_GETFL, 0) | O_NONBLOCK);
     FD_SET(server_sk, &socket_set);
     sockets[n_socket] = server_sk; // zero == 0
@@ -114,6 +357,8 @@ int main(int argc, char **argv) {
     };
     printf("Echo server listening --- press Ctrl-C to stop\n");
     
+    sprintf(buf, "server listening\n"); LOG(buf);
+        
     while (1) {
         
         ready_set = socket_set;
@@ -128,8 +373,11 @@ int main(int argc, char **argv) {
         }else if ((flag_sk == 0) && (!FD_ISSET(server_sk, &ready_set))){ // wait more then time
             // before code below we must be sure that nothing was disconnected, or if so - must delet connect without crash server
                 printf("continue wait for new connection? press ':q' or \"enter\" to again use it.\nnow n = %d ? >", n_socket);
-                fgets(buf, BUFSIZE, stdin);
-                if (strcmp(buf, ":q\n") == 0)
+                fgets(&buf, BUFSIZE, stdin);
+                strcat(buf, "(ps user write) \n");
+                printf("buffer is - %s\n");
+                LOG(buf);
+                if (strncmp(buf, ":q", 2) == 0)
                     break;
             
         }else{ 
@@ -159,6 +407,8 @@ int main(int argc, char **argv) {
                 }
                 // else continue below
                 printf("end ready server\n");
+                sprintf(buf, "end ready server\n"); LOG(buf);
+
             }
             if (n_socket > 1) {
                 for(i = 1; i < n_socket; i++){ // i == 0 - server socket
@@ -180,7 +430,7 @@ int main(int argc, char **argv) {
                         }else{
                             buf[len] = '\0';
                             printf("message exchange form socket %d:\n<> %s </>\n", i, buf);
-                            if (strcmp(buf, "/q\n") == 0){
+                            if (strncmp(buf, "/q", 2) == 0){
                                 printf("%s #%d want disconnecting\n", clients[i].name, i);
                                 disconnect(sockets, &socket_set, i);
                                 continue;
@@ -287,6 +537,12 @@ int main(int argc, char **argv) {
     }
 
     /* must be reachable code */
+    if (logger_pid > 0){
+        sprintf(buf, "/exit%d", logger_pid);
+        mq_send(mq_open(buf, O_WRONLY), "$", sizeof(char), 0);
+        LOG("was sended exit to queue logger!");
+        // free_process(logger_pid);
+    }
     close(server_sk);
     return 0;
 }
@@ -294,6 +550,11 @@ int main(int argc, char **argv) {
 // input from what we delet == pointer (set, list) and what delet == count (i)
 void disconnect(int *socket_list, fd_set *socket_set, int deleted_i){ //, int * n_socket)
 
+    sprintf(buf, "disconnected for %d\n", deleted_i);
+    
+    send(sockets[deleted_i], "\0", 0, 0); // is it empty?
+
+    LOG(buf);
     if (deleted_i >= n_socket){
         printf("socket not exist, error argument!\n");
         perror("close\n");

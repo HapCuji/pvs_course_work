@@ -3,10 +3,12 @@
 server:
 
 1. when i send to not exist user was trouble on server work : was disconnect real user without normal work;
-2. 
+2. not lose when :q
+3. write from what and who send message
 
 client:
 
-1. if server return anything => we must show it (in time) and not deleting the text from "form"(command line)
-2. 
++1. if server return anything => we must show it (in time) and not deleting the text from "form"(command line)
 
+1. when 2 send to 1 i am lost 1 message (client or serfer was failed (i thinck it is client in other process!!)) 
+2. when i exit 1 process was not killed!!
