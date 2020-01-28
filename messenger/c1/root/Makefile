@@ -1,6 +1,14 @@
+CC = gcc -Wall
+PF = -lpthread
+FILES = echocl_nb.c
+
+client:
+	$(CC) $(FILES) -o echocl_nb $(PF)
+ 
+
 CFLAGS = -static -std=c99 -D_GNU_SOURCE=1
 
-all: nagle echocl echocl_nb
+other: nagle echocl echocl_nb
 
-clean:
+clean_all:
 	rm nagle echocl echocl_nb

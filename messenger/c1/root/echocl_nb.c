@@ -15,10 +15,21 @@
 #include <fcntl.h>
 #include <signal.h> // for kill()
 
+#include <pthread.h>
+
 #define true            1
 #define false           0
 
 typedef unsigned char bool;
+
+typedef struct {
+    bool server_failed;
+    bool user_exit;
+    int sk;
+    int debug_cnt;
+} general_threads_data_t;
+
+void * user_controller(void* thread_data);
 
 int main(int argc, char **argv) {
     struct sockaddr_in addr;    /* для адреса сервера */
@@ -65,18 +76,45 @@ int main(int argc, char **argv) {
     printf("Connected to Echo server. Type /q to quit.\n");
     
     // here will created two threads or proccess
-
+    #ifdef __USE_PROCESS__ // see last code part in prevision commit
     pid_t pid_cur = 0; // it is int type
     bool is_parent = false;
     pid_cur = fork(); // return 0 for new process
     if (pid_cur > 0)
         is_parent = true;
     pid_cur = getpid();
+    #else
+    // pthread_t thread_controller;
+    pthread_t * another_thread = (pthread_t *) malloc(1*sizeof(pthread_t));
+    // void * general_threads_data = NULL;
+    general_threads_data_t * general_threads_data = malloc(1*sizeof(general_threads_data_t));
+    general_threads_data->server_failed = false;
+    general_threads_data->user_exit = false;
+    general_threads_data->sk = sk;
+    general_threads_data->debug_cnt = 11;
+    // pthread_create(&another_thread, NULL, message_reciever, &general_threads_data);
+    pthread_create(another_thread, NULL, &user_controller, general_threads_data);
 
-    while (1) {
+    #endif
 
-        if (!is_parent)
-        {
+    while(true)
+    {
+        #ifdef __PARENT_IS_USER_CONTROLLER__
+               // only parent process                                    
+        printf("(ready to new command)\n");
+        fgets(buf, BUFSIZE, stdin);
+        if (strlen(buf) <= 1) // only enter \n
+            continue;
+        if (strcmp(buf, "/q\n") == 0)
+            break;
+
+        if (send(sk, buf, strlen(buf), 0) < 0) {
+            if(errno != EWOULDBLOCK){
+                perror("send");
+                exit(1);
+            }
+        }
+        #else // __PARENT_IS_MESSAGE_RECIEVER__
             len = recv(sk, buf, BUFSIZE, 0);
             if (len < 0) {
                 if(errno != EWOULDBLOCK){
@@ -85,51 +123,127 @@ int main(int argc, char **argv) {
                 }
             } else if (len == 0) {
                 printf("Remote host has closed the connection (empty message).\n");
-                exit(1);
+                general_threads_data->server_failed = true;
+                pthread_exit(another_thread);       // check it! // we must close user input!!
+                printf("pid (%d) message resiever was stopped", getpid());
+                break;
+                // exit(1);
             } else if (len > 0){
                 buf[len] = '\0';
-                printf("recieve from server:\n << %s\n", buf);
+                printf("(recieve from server):\n << %s\n", buf);
             }
-            // her must be check that parent process is ending!!!
-            // her must be check that parent process is ending!!!
-            // her must be check that parent process is ending!!!
 
-        } 
-        else 
-        {       // only parent process
-            printf("(ready to new command)\n");
-            fgets(buf, BUFSIZE, stdin);
-            if (strlen(buf) <= 1) // only enter \n
-                continue;
-            if (strcmp(buf, "/q\n") == 0)
-                break;
+            if (general_threads_data->debug_cnt % 10 == 0){
+                printf("counter in use %d \n", general_threads_data->debug_cnt);
+                general_threads_data->debug_cnt = 77;
+            }
 
-            if (send(sk, buf, strlen(buf), 0) < 0) {
-                if(errno != EWOULDBLOCK){
-                    perror("send");
-                    exit(1);
+
+            if (general_threads_data->user_exit == true)
+            {
+                sprintf(buf, "\0"); //"/q");
+                while (3.14){
+                    if (send(sk, buf, strlen(buf), 0) < 0) {
+                        if(errno == EWOULDBLOCK)
+                            continue;
+                        perror("send");
+                        exit(1);
+                    }
+                    else
+                        break;
+                    printf("trying quit by user (sending empty mess to server) \n");
                 }
+                pthread_join(*another_thread, NULL); // it must be yet close by user
+                break;
             }
-        }
+        #endif
+        
     }
-
-    sprintf(buf, "/q");
-    while (3.14){
-        if (send(sk, buf, strlen(buf), 0) < 0) {
-            if(errno == EWOULDBLOCK)
-                continue;
-            perror("send");
-            exit(1);
-        }
-        else
-            break;
-    }
+    printf("client closing socket\n");
     close(sk);
 
+    #ifdef __USE_PROCESS__
     printf("killing proc %d \n", pid_cur);
     kill(pid_cur, SIGTERM);                 // pid_cur == getpid()
     if (is_parent)
         printf("killed ok\n");
+    #else
+    #endif
+
+    free(general_threads_data);
+    free(another_thread);
+
 
     return 0;
 }
+
+
+// ------------------
+// below only threads func
+// -----------------------
+void * user_controller(void* thread_data)
+{
+    general_threads_data_t * data = (general_threads_data_t *) thread_data; // can just "= thread_data;"
+    char buf[BUFSIZE];
+    printf("cnter %d sk = %d\n", data->debug_cnt, data->sk);
+
+    while(true)
+    {       // only parent process                                    
+   
+        if (data->debug_cnt == 77)
+            printf("general cnt 77\n");
+        else
+            data->debug_cnt += 1;
+            
+        printf("(ready to new command)\n");
+        fgets(buf, BUFSIZE, stdin);
+        if (strlen(buf) <= 1) // only enter \n
+            continue;
+        if (strncmp(buf, "/q", 2) == 0){
+            data->user_exit = true;
+            printf("user controller stoped pid=%d\n", getpid());
+            break;
+        }
+
+        if (send(data->sk, buf, strlen(buf), 0) < 0) {
+            if(errno != EWOULDBLOCK){
+                perror("send");
+                exit(1);
+            }
+        }
+
+        //if server_failed == true // not need user input
+    }
+    printf("cnt = %d\n", data->debug_cnt);
+    return NULL;
+}
+
+// void * message_reciever(void* thread_data);
+// void * message_reciever(void* thread_data)
+// {
+//     general_threads_data_t * data = (general_threads_data_t *) thread_data; // can just "= thread_data;"
+//     char buf[BUFSIZE];
+//     ssize_t len = 0;
+//     printf("cnter %d sk = %d\n", data->debug_cnt, data->sk);
+
+//     while (1) {
+
+//             len = recv(data->sk, buf, BUFSIZE, 0);
+//             if (len < 0) {
+//                 if(errno != EWOULDBLOCK){
+//                     perror("recv");
+//                     exit(1);
+//                 }
+//             } else if (len == 0) {
+//                 printf("Remote host has closed the connection (empty message).\n");
+//                 exit(1);
+//             } else if (len > 0){
+//                 buf[len] = '\0';
+//                 printf("(recieve from server):\n << %s\n", buf);
+//             }
+//             // here must be check that parent process is ending!!!
+//     } 
+//     return NULL;
+// }
+
+// -------------------------
