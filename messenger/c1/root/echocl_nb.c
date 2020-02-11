@@ -16,6 +16,11 @@
 #include <signal.h> // for kill()
 
 #include <pthread.h>
+// pthread_create() - clreate child thread
+// pthread_exit() - close current thread
+// pthread_cancel() - close choosed thread :: but it can work not so, as you want
+// exit() or return; in _main_ thread => will close all children's threads
+
 
 #define true            1
 #define false           0
@@ -26,7 +31,6 @@ typedef struct {
     bool server_failed;
     bool user_exit;
     int sk;
-    int debug_cnt;
 } general_threads_data_t;
 
 void * user_controller(void* thread_data);
@@ -85,15 +89,14 @@ int main(int argc, char **argv) {
     pid_cur = getpid();
     #else
     // pthread_t thread_controller;
-    pthread_t * another_thread = (pthread_t *) malloc(1*sizeof(pthread_t));
+    pthread_t another_thread;
     // void * general_threads_data = NULL;
-    general_threads_data_t * general_threads_data = malloc(1*sizeof(general_threads_data_t));
-    general_threads_data->server_failed = false;
-    general_threads_data->user_exit = false;
-    general_threads_data->sk = sk;
-    general_threads_data->debug_cnt = 11;
+    general_threads_data_t general_threads_data;
+    general_threads_data.server_failed = false;
+    general_threads_data.user_exit = false;
+    general_threads_data.sk = sk;
     // pthread_create(&another_thread, NULL, message_reciever, &general_threads_data);
-    pthread_create(another_thread, NULL, &user_controller, general_threads_data);
+    pthread_create(&another_thread, NULL, user_controller, &general_threads_data);
 
     #endif
 
@@ -118,14 +121,15 @@ int main(int argc, char **argv) {
             len = recv(sk, buf, BUFSIZE, 0);
             if (len < 0) {
                 if(errno != EWOULDBLOCK){
+                    printf("not EWOULDBLOCK len was < 0");
                     perror("recv");
                     exit(1);
                 }
             } else if (len == 0) {
                 printf("Remote host has closed the connection (empty message).\n");
-                general_threads_data->server_failed = true;
-                pthread_exit(another_thread);       // check it! // we must close user input!!
-                printf("pid (%d) message resiever was stopped", getpid());
+                general_threads_data.server_failed = true;
+                pthread_cancel(another_thread);
+                pthread_join(another_thread, NULL);       // check it! // we must close user input!!
                 break;
                 // exit(1);
             } else if (len > 0){
@@ -133,15 +137,9 @@ int main(int argc, char **argv) {
                 printf("(recieve from server):\n << %s\n", buf);
             }
 
-            if (general_threads_data->debug_cnt % 10 == 0){
-                printf("counter in use %d \n", general_threads_data->debug_cnt);
-                general_threads_data->debug_cnt = 77;
-            }
-
-
-            if (general_threads_data->user_exit == true)
+            if (general_threads_data.user_exit == true)
             {
-                sprintf(buf, "\0"); //"/q");
+                sprintf(buf, "/q");
                 while (3.14){
                     if (send(sk, buf, strlen(buf), 0) < 0) {
                         if(errno == EWOULDBLOCK)
@@ -151,15 +149,14 @@ int main(int argc, char **argv) {
                     }
                     else
                         break;
-                    printf("trying quit by user (sending empty mess to server) \n");
                 }
-                pthread_join(*another_thread, NULL); // it must be yet close by user
+                pthread_join(another_thread, NULL); // like waitpid()
                 break;
             }
         #endif
         
     }
-    printf("client closing socket\n");
+    printf("client_socket will be closed\n");
     close(sk);
 
     #ifdef __USE_PROCESS__
@@ -170,8 +167,8 @@ int main(int argc, char **argv) {
     #else
     #endif
 
-    free(general_threads_data);
-    free(another_thread);
+    // free(general_threads_data);
+    // free(another_thread);
 
 
     return 0;
@@ -185,23 +182,18 @@ void * user_controller(void* thread_data)
 {
     general_threads_data_t * data = (general_threads_data_t *) thread_data; // can just "= thread_data;"
     char buf[BUFSIZE];
-    printf("cnter %d sk = %d\n", data->debug_cnt, data->sk);
-
     while(true)
-    {       // only parent process                                    
-   
-        if (data->debug_cnt == 77)
-            printf("general cnt 77\n");
-        else
-            data->debug_cnt += 1;
-            
-        printf("(ready to new command)\n");
+    {
+        if (data->server_failed == true)
+            break;
+
+        printf("($)\n");
         fgets(buf, BUFSIZE, stdin);
         if (strlen(buf) <= 1) // only enter \n
             continue;
         if (strncmp(buf, "/q", 2) == 0){
+            printf("exit\n");
             data->user_exit = true;
-            printf("user controller stoped pid=%d\n", getpid());
             break;
         }
 
@@ -211,21 +203,18 @@ void * user_controller(void* thread_data)
                 exit(1);
             }
         }
-
-        //if server_failed == true // not need user input
     }
-    printf("cnt = %d\n", data->debug_cnt);
+    printf("user controller is closed\n");
+
     return NULL;
 }
 
-// void * message_reciever(void* thread_data);
-// void * message_reciever(void* thread_data)
+// void message_reciever(void* thread_data);
+// void message_reciever(void* thread_data)
 // {
 //     general_threads_data_t * data = (general_threads_data_t *) thread_data; // can just "= thread_data;"
 //     char buf[BUFSIZE];
 //     ssize_t len = 0;
-//     printf("cnter %d sk = %d\n", data->debug_cnt, data->sk);
-
 //     while (1) {
 
 //             len = recv(data->sk, buf, BUFSIZE, 0);
@@ -242,8 +231,8 @@ void * user_controller(void* thread_data)
 //                 printf("(recieve from server):\n << %s\n", buf);
 //             }
 //             // here must be check that parent process is ending!!!
+
 //     } 
-//     return NULL;
 // }
 
 // -------------------------

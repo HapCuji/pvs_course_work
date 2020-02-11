@@ -35,7 +35,7 @@ static inline int init_buffer(struct buffer *buf, size_t size)
     buf->pos = 0;
     buf->buf = malloc(size);
     if (!buf->buf){
-        erromsg("in malloc()");
+        perror("in malloc()");
         buf->size = 0;
         return -1;
     }
@@ -43,15 +43,17 @@ static inline int init_buffer(struct buffer *buf, size_t size)
     return 0;
 }
 
-
-static inline int cutn_buffer(struct buffer *buf, size_t len)
+// return the rests of buffer
+static inline char * cutn_buffer(struct buffer *buf, size_t len)
 {
-    if (buf->pos < len)
+    if (buf->pos < len){
+        perror("CANT'T cut buffer (pos < len)");
         return -1; // too many cut's shift
+    }
 
     char *cut = malloc(len+1);
     if (!cut){
-        erromsg("in malloc()");
+        perror("in malloc()");
         return NULL;
     }
     memcpy(cut, buf->buf, len);
@@ -183,8 +185,8 @@ bool save_to_file(char* fname, char* txt, bool info)
 // input fd (for socket only)
 pid_t create_logger()
 {
-    int fd_listen = NULL;
-    printf("value NULL == %d,  value NULL %d, addres %d\n", NULL, fd_listen, &fd_listen);
+    int fd_listen = 0;
+    // printf("value NULL == %d,  value NULL %d, addres %d\n", NULL, fd_listen, &fd_listen);
     pid_t pid_logger = -1;
 
     int pid = fork();
@@ -231,6 +233,7 @@ void body_logger(int* fd, pid_t* pid)
 
 void run_logger(struct process_t* pr) 
 {
+    char msg[BUFSIZE];
 	while (pr->worked) {
 		struct timeval tv;
 		tv.tv_sec = SELECT_TIMEOUT_LOGGER;
@@ -242,10 +245,11 @@ void run_logger(struct process_t* pr)
 
 		switch(select(pr->fd.max + 1, pr->readfds, NULL, NULL, &tv)) {
             case 0:
-                printf("Logger(%d): Timeout\n", getpid());
+                sprintf(msg, "Logger(%d): Timeout\n", getpid());
+                printf("%s", msg);
+                LOG(msg);
                 break;
             default: {
-                char msg[BUFSIZE];
                 memset(msg, 0x0, sizeof(msg));
                 
                 printf("Logger(%d): i am in case(after select)\n", getpid());
@@ -253,15 +257,16 @@ void run_logger(struct process_t* pr)
                 if (FD_ISSET(pr->fd.cmd, pr->readfds)) {
                     if (mq_receive(pr->fd.cmd, msg, BUFSIZE, NULL) >= 0) {
                         if (strcmp(msg, "$") == 0) {    // msg start from $
-                            printf("Logger(%d): accept command on close\n", getpid());
-                            LOG("close logger");
+                            sprintf(msg, "Logger(%d): accept command on close\n", getpid());
+                            printf("%s", msg);
+                            LOG(msg);
                             pr->worked = false;
                         }
                     }
                 }
                 if (FD_ISSET(pr->fd.logger, pr->readfds)) {
                     if (mq_receive(pr->fd.logger, msg, BUFSIZE, NULL) >= 0) {
-                            printf("Logger(%d): received message from %s\n", getpid(), msg);
+                            printf("Logger(%d): received message : %s\n", getpid(), msg);
                             LOG(msg);
                     }
                 }
@@ -321,6 +326,7 @@ int main(int argc, char **argv) {
     /* связываем сокет с адресом и портом */
     if (bind(server_sk, (struct sockaddr*) &addr, sizeof(addr)) < 0) {
         perror("bind");
+        close_logger_proc(logger_pid);
         exit(1);
     }
 
@@ -353,6 +359,7 @@ int main(int argc, char **argv) {
     /* переводим сокет в состояние ожидания соединений  */
     if (listen(server_sk, SOMAXCONN) < 0) {
         perror("listen");
+        close_logger_proc(logger_pid);
         exit(1);
     };
     printf("Echo server listening --- press Ctrl-C to stop\n");
@@ -369,13 +376,18 @@ int main(int argc, char **argv) {
         flag_sk = select(FD_SETSIZE, &ready_set, NULL, NULL, &timeout); // (FD_SETSIZE OR n_socket+1,
         if (flag_sk == -1){ 
             perror("select error");
+            close_logger_proc(logger_pid);
             exit(1);
         }else if ((flag_sk == 0) && (!FD_ISSET(server_sk, &ready_set))){ // wait more then time
+            // if server ready 
+            // but socket just one client socket not ready (after passed time) 
+            // then ask user - "is need close server or try again?"
+            
             // before code below we must be sure that nothing was disconnected, or if so - must delet connect without crash server
                 printf("continue wait for new connection? press ':q' or \"enter\" to again use it.\nnow n = %d ? >", n_socket);
-                fgets(&buf, BUFSIZE, stdin);
-                strcat(buf, "(ps user write) \n");
-                printf("buffer is - %s\n");
+                fgets(buf, BUFSIZE, stdin);
+                printf("buffer is - %s\n", buf);
+                strcat(buf, " - (ps user write) \n");
                 LOG(buf);
                 if (strncmp(buf, ":q", 2) == 0)
                     break;
@@ -389,7 +401,7 @@ int main(int argc, char **argv) {
                     perror("accept");
                     exit(1);
                 }
-
+                    // if server ready and have client not in set  - we need to add it to 
                 if (!FD_ISSET(client_sk, &socket_set)){
                     // was new socket
                     fcntl(client_sk, F_SETFL, fcntl(client_sk, F_GETFL, 0) | O_NONBLOCK);
@@ -428,7 +440,7 @@ int main(int argc, char **argv) {
                             disconnect(sockets, &socket_set, i);
                             continue;
                         }else{
-                            buf[len] = '\0';
+                            // buf[len] = '\0';
                             printf("message exchange form socket %d:\n<> %s </>\n", i, buf);
                             if (strncmp(buf, "/q", 2) == 0){
                                 printf("%s #%d want disconnecting\n", clients[i].name, i);
@@ -538,13 +550,18 @@ int main(int argc, char **argv) {
 
     /* must be reachable code */
     if (logger_pid > 0){
-        sprintf(buf, "/exit%d", logger_pid);
-        mq_send(mq_open(buf, O_WRONLY), "$", sizeof(char), 0);
-        LOG("was sended exit to queue logger!");
-        // free_process(logger_pid);
+        close_logger_proc(logger_pid);
     }
+    printf("socket server closing\n");
     close(server_sk);
     return 0;
+}
+
+void close_logger_pid(pid_t pid){
+    sprintf(buf, "/exit%d", pid);
+    mq_send(mq_open(buf, O_WRONLY), "$", sizeof(char), 0);
+    LOG("was sended exit to queue logger!");
+        // free_process(logger_pid);
 }
 
 // input from what we delet == pointer (set, list) and what delet == count (i)
