@@ -1,1 +1,43 @@
 save here
+.check whereever using malloc realloc alloc <=> must be free() 
+=> all data that have pointer must be free before we free the it pointer (in other case we lost it data and can't free )
+    => but when we alloc memory for pointer that content static parameter, memory allocate for all it data already..
+        i.e. for example:
+        /<../ 
+        struct anytype {
+            int i;
+            char buf[500];
+            new_type p_new;
+        } * p_struct;
+
+        p_struct = malloc(sizeof(*p_struct));                   // allocate memory for "i", "buf", but not allocate for "p_new"
+        free(p_struct);                                         // all good
+        /..>/ 
+        after if we allocate p_new, and then must free (p_new) before (p_struct)
+        /<../ 
+        p_struct = malloc(sizeof(*p_struct));                   // allocate memory for "i", "buf", but not allocate for "p_new"
+        p_struct->p_new = malloc(sizeof(*p_struct->p_new));     // allocate for "p_new"
+        free(p_struct->p_new);                                  // only so
+        free(p_struct);
+        /..>/ 
+
+        <!!>
+        Use free() to deallocate memory that has been previously allocated by malloc() or one of its variants. 
+        Always remember where the memory came from – stack or heap 
+        <!!>
+
+. cdo error code
+. cdo state in send mess
+. cdo controll client data
+
+
++. do double linked list
+. do read while recv or strlen(body + buf) < MAX_SMTP_MESSAGE
+. do check run server
+. test memory
+. test connect
+. test big data
+
+. сделать перенос (если команда не в начале сообщения лишнюю часть выкинуть и перекопировать буфер в начало (не уверен что так делают, но мне нравится))
+
+. test client 

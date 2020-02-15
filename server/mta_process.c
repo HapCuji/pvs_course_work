@@ -1,7 +1,7 @@
 #include "mta_server.h"
 
 
-void run_logger(struct inst_proc_t *pr)
+void run_logger(inst_proc_t *pr)
 {
     char msg[BUFSIZE];
 
@@ -25,6 +25,7 @@ void run_logger(struct inst_proc_t *pr)
                 
                 printf("Logger(%d): i am in case(after select)\n", getpid());
 
+                // one question what i must doing when receive cmd for thread? mb return it to back by mq_send()
                 if (FD_ISSET(pr->fd.cmd, pr->socket_set)) {
                     if (mq_receive(pr->fd.cmd, msg, BUFSIZE, NULL) >= 0) {
                         if (strcmp(msg, "$") == 0) {    // msg start from $
@@ -49,7 +50,7 @@ void run_logger(struct inst_proc_t *pr)
 
 // return 0 or error code
 // now proc only listen
-int init_process(struct inst_proc_t * proc, int fd_server_socket, int logger_id) // 
+int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) // 
 {
     int status = 0;
     proc->pid = getpid();
@@ -90,7 +91,9 @@ int init_process(struct inst_proc_t * proc, int fd_server_socket, int logger_id)
     }
 
     if (proc->fd.logger == -1 || proc->fd.cmd == -1) {
-        perror("mq_open() failed");
+        perror("mq_open() failed in proc");
+        free(proc->socket_set_read);
+        free(proc->socket_set_write);
         free(proc);
         proc = NULL;
     } 
@@ -114,7 +117,7 @@ int init_process(struct inst_proc_t * proc, int fd_server_socket, int logger_id)
 // now second var - only one on all server
 pid_t create_logger(int fd_server_socket)
 {   
-    struct inst_proc_t * pr_logger = (struct inst_proc_t *) malloc(sizeof *inst_proc_t);
+    inst_proc_t * pr_logger = (inst_proc_t *) malloc(sizeof *inst_proc_t);
     // int fd_listen = 0;
     // pid_t pid_logger = -1;
 
@@ -130,7 +133,7 @@ pid_t create_logger(int fd_server_socket)
 
             pid = getpid();
                 // INITIALIZATION process (log_id == getpid)
-            if(init_process(&pr_logger, fd_server_socket, LOGGER_PROC) && pr_logger != NULL)
+            if(init_process(pr_logger, fd_server_socket, LOGGER_PROC) && pr_logger != NULL)
             {
                 char msg[BUFSIZE];
                 sprintf(msg, "new log session(%d)", *pid);
@@ -156,6 +159,38 @@ pid_t create_logger(int fd_server_socket)
     }
     return pid;
 
+}
+
+void free_process(inst_proc_t * proc){
+    if (proc != NULL) {
+        printf("free_process (%d)\n", proc->pid);
+        free(proc->socket_set_read);
+        free(proc->socket_set_write);
+
+            /* Need clear queue every proc or no (now i have only logger*/
+        // free message queue if (getpid() == proc->pid == proc->log_id){}
+        if (proc->fd.logger != -1)
+            mq_close(proc->fd.logger);
+        if (proc->fd.cmd != -1)
+            mq_close(proc->fd.cmd);
+
+        if (proc->lgpid == proc->pid) {
+            char* lgname = malloc(sizeof(*lgname) * 20); 
+
+            sprintf(lgname, "/process%d", proc->log_id);
+            mq_unlink(lgname);
+
+            memset(lgname, 0x00, strlen(lgname));
+            sprintf(lgname, "/exit%d", proc->log_id);
+            mq_unlink(lgname);
+            
+            free(lgname);
+        }
+        // end free message queue
+
+        free(proc);
+        proc = NULL;
+    } 
 }
 
 

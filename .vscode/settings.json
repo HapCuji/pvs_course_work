@@ -3,6 +3,11 @@
         "in.h": "c",
         "mta_server.h": "c",
         "stdio.h": "c",
-        "mqueue.h": "c"
+        "mqueue.h": "c",
+        "pthread.h": "c",
+        "pthreadtypes.h": "c",
+        "sched.h": "c",
+        "fcntl.h": "c",
+        "time.h": "c"
     }
 }
