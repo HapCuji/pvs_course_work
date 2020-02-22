@@ -36,7 +36,7 @@ int init_thread(inst_thread_t * th, threads_var_t * t_data)
         free(th);
         th = NULL;
     } 
-    printf("Worker thread(%d): linked log queue\n", pthread_self());
+    printf("Worker thread(%d): linked log queue\n", (int)pthread_self());
 
     // th->gen = malloc(sizeof(general_threads_data_t));
     //the same :?: *th->gen = t_data->gen; // ? // as i know we does not sould malloc if we assignment address already contented the data
@@ -49,7 +49,7 @@ int init_thread(inst_thread_t * th, threads_var_t * t_data)
 
 void free_thread(inst_thread_t * th){
     if (th != NULL) {
-        printf("free_thread (%d)\n", th->tid);
+        printf("free_thread (%d)\n", (int)th->tid);
         free(th->socket_set_read);
         free(th->socket_set_write);
         // free(th->gen);                       // we not alloc mem for it see in main()
@@ -58,24 +58,28 @@ void free_thread(inst_thread_t * th){
     } 
 }
 
-void run_thread_worker(void * t_data){
+void * run_thread_worker(void * t_data){
     threads_var_t * data = (threads_var_t *) t_data;
     inst_thread_t * th = malloc(sizeof(*th));
     init_thread(th, data);                     // data->srv_sk, data->log_id // like in proc
 
     work_cicle(th);
 
-    free_thread(th);        
+    free_thread(th);   
+
+    return NULL;     
 }
 
-void run_thread_controller(void * t_data){
+void * run_thread_controller(void * t_data){
     threads_var_t * data = (threads_var_t *) t_data;
-    inst_thread_t * th;
+    inst_thread_t * th = malloc(sizeof(*th));
     init_thread(th, data);                     // data->srv_sk, data->log_id
 
     thread_analitic_cicle(th);                  // can be only one thread
     
-    free_thread(th);        
+    free_thread(th);   
+
+    return NULL;     
 }
 
 #define NUM_DEFAULT_FD          2 // how much i have :: cmd, logger (fd not in set, it use another proc), server socket
@@ -175,7 +179,7 @@ void work_cicle(inst_thread_t * th)
     struct timeval timeout;
     timeout.tv_sec = TIME_FOR_WAITING_MESSAGE_SEC;          // x sec +
     timeout.tv_usec = TIME_FOR_WAITING_MESSAGE_NSEC;        // 800000;  // + 0.8 sec
-    th->n_sockets = 1; // NUM_DEFAULT_FD;                          // ? // add 2 already
+    th->n_sockets = 1; // NUM_DEFAULT_FD;                          // only cmd without server_socket
     char logbuf[BUFSIZE];                                   // we will recieve already in client struct
     
     struct sockaddr client_addr;                            /* для адреса клиента */
@@ -208,7 +212,7 @@ void work_cicle(inst_thread_t * th)
             while(th->gen->sock_q->next == NULL)
                 pthread_cond_wait(th->gen->is_work, th->gen->mutex_queue);            // block any work thread while we do't have more client
 
-            th_queue_t * new_client = pop_client_from_queue(th->client);
+            th_queue_t * new_client = pop_client_from_queue(th->gen->sock_q);
             if (new_client->next == NULL){                      // WAS returned right vallue
                 client_addr = new_client->cl_addr;
                 cl_socket = new_client->fd_cl;
@@ -235,8 +239,8 @@ void work_cicle(inst_thread_t * th)
                     (any_type tmp = *(any_type *) p) the all struct data (from '*p') will be memcopy to new variable (to 'tmp') every time,
                     , it is not good. // when i use (*)p = (*)other => i copy only address for ppointer
                 */
-                if (i->is_writing) FD_SET(i->fd, th->socket_set_write); 
-                else FD_SET(i->fd, th->socket_set_read);
+                if (i->is_writing)  FD_SET(i->fd, th->socket_set_write); 
+                else                FD_SET(i->fd, th->socket_set_read);
                 i = i->next;
             } 
             else {
@@ -245,10 +249,30 @@ void work_cicle(inst_thread_t * th)
                     close_client_by_state(i->last);         // after it, "i" will be content last (prev == (i-1)) value, 
                 } else                                      
                     close_client_by_state(i);               // here i == NULL (was deleted last client) 
+                
+                th->n_sockets -= 1;
             }                                               
         }
+
+        // if server ready and have new client not in set  - we need to add it to 
+        if ((cl_socket != 0) && !FD_ISSET(cl_socket, th->socket_set_read)){
+            // 2 - was new socket
+            if (fcntl(cl_socket, F_SETFL, fcntl(cl_socket, F_GETFL, 0) | O_NONBLOCK) < 0) 
+                push_error(ERROR_FCNTL_FLAG);
+            
+            init_new_client(&th->client, cl_socket, client_addr);    // check it (client is pointer already like in arg init() )
+            th->n_sockets += 1;
+
+            if (th->client->is_writing) FD_SET(th->client->fd, th->socket_set_write); 
+            else                        FD_SET(th->client->fd, th->socket_set_read);
+
+            sprintf(logbuf, "new client_sk accepted %s\n", client_addr.sa_data);
+            log_queue(th->fd.logger, logbuf);
+
+            cl_socket = 0;
+        }
         
-        int flag_sk = select(FD_SETSIZE, &th->socket_set_read, th->socket_set_write, NULL, &timeout); // (FD_SETSIZE OR n_socket+1,
+        int flag_sk = select(FD_SETSIZE, th->socket_set_read, th->socket_set_write, NULL, &timeout); // (FD_SETSIZE OR n_socket+1,
         if (flag_sk == -1){ 
             push_error(ERROR_SELECT);
         } else if ((flag_sk == 0) && (!FD_ISSET(th->fd.cmd, th->socket_set_read)) ){ // wait more then time
@@ -256,95 +280,57 @@ void work_cicle(inst_thread_t * th)
             // before code below we must be sure that nothing was disconnected, 
             // or if so - must delet connect without crash server!
 
-            sprintf(logbuf, "Time over for thread %d, continue work with %d nums of client.\n", (pthread_self()), th->n_sockets);
+            sprintf(logbuf, "Time over for thread %d, continue work with %d nums of client.\n", (int)(pthread_self()), th->n_sockets);
             log_queue(th->fd.logger, logbuf);
             
         }else{ 
             /* Below part code work with clients sockets. We will try use the same cl->buffer for receive and (after prepare) for send*/
-                // if server ready and have client not in set  - we need to add it to 
-            if ((cl_socket != 0) && !FD_ISSET(cl_socket, th->socket_set_read)){
-                // 2 - was new socket
-                if (fcntl(cl_socket, F_SETFL, fcntl(cl_socket, F_GETFL, 0) | O_NONBLOCK) < 0) 
-                    push_error(ERROR_FCNTL_FLAG);
-                // sockets[n_socket] = client_sk;
-                init_new_client(th->client, cl_socket, client_addr); // check it (client is pointer already like in arg init() )
-                th->n_sockets += 1;
-
-                sprintf(logbuf, "new client_sk accepted %s\n", client_addr.sa_data);
-                log_queue(th->fd.logger, logbuf);
-
-                // i suppose that we can send first message already here! like greeting
-                th->client->cur_state = CLIENT_STATE_START; // must be sended greeting
-                // below delet::
-/*
-                sprintf(th->client->buf, REPLY_HELLO); // hello from our server (socket)
-                if (send(th->client->fd, th->client->buf, strlen(th->client->buf), 0) < 0) { // check it!
-                    if (errno != EWOULDBLOCK) {
-                        th->client->cur_state = CLIENT_STATE_CLOSED;
-                        // disconnect(sockets, &socket_set, n_socket-1);
-                    }// else // below not uncomment!!  we can have state with blocked in any state // not one explain
-                        // th->client->cur_state = CLIENT_STATE_BLOCKED;// NEED TRY SEND AGAIN! => mb need send answer not right here? check it
-                } 
-                else // all ok sended next state
-                {
-                    th->client->cur_state = CLIENT_STATE_INITIALIZED; // next_state(&th->client->cur_state);
-                    th->client->is_writing = false; // next will be recieving next message (helo / ehlo)
-                }
-*/
-
-                cl_socket = 0;
-            }
             
+            bool continue_recv = true;
+
             for(client_list_t * cl_i = th->client; cl_i != NULL; cl_i = cl_i->next){ // i == 0 - server socket
                 /* Read message to clientt buf */
                 if (FD_ISSET(cl_i->fd, th->socket_set_read)){
                     
-                    cl_i->busy_len_in_buf = 0; /* every new transfer buffer must be clean // check it ! may be memset?*/
-                    len_recieved = recv(cl_i->fd, cl_i->buf, sizeof(cl_i->buf), flag_recv); 
-                    // len_recieved = recv(cl_i->fd, (cl_i->buf+cl_i->busy_len_in_buf), (sizeof(cl_i->buf) - cl_i->busy_len_in_buf), flag_recv);
-                    if (len_recieved < 0) {
-                        perror("recv");
-                        if (errno == EWOULDBLOCK){
-                            // NEED TRY AGAIN - WAIT NEXT session
-                        } else {
-                            cl_i->cur_state = CLIENT_STATE_CLOSED;      // just error
-                        }
-                        continue;
-                    } else if (len_recieved == 0) {
-                        cl_i->cur_state = CLIENT_STATE_CLOSED;
-                        // printf("Will disconnect with zero message (empty).\n");
-                        // disconnect(sockets, &socket_set, i);
-                        continue;
-                    }else{
+                    continue_recv = true;
+                    // cl_i->busy_len_in_buf = 0; /* buffer will be clean inside parser, when catched whole message, or part of body*/
+                    while (continue_recv){
 
-                        /* if we receive anything -> work more as can */
-
-                        cl_i->busy_len_in_buf += len_recieved;
-
-                        flags_parser_t flag_parser = parse_message_client(cl_i);
-                        while ( (errno != EWOULDBLOCK) ) {
-                            if (flag_parser == ANSWER_READY_to_SEND)
-                                break;
-
-                            len_recieved = recv(cl_i->fd, (cl_i->buf+cl_i->busy_len_in_buf), (sizeof(cl_i->buf) - cl_i->busy_len_in_buf), flag_recv);
-                            // cl_i->busy_len_in_buf = recv(cl_i->fd, cl_i->buf, sizeof(cl_i->buf), flag_recv);
-                            if (len_recieved <= 0) {
-                                if (errno != EWOULDBLOCK){
-                                    cl_i->cur_state = CLIENT_STATE_CLOSED;
-                                }
-                                break;                                  // we must save not whoe data from client
+                        len_recieved = recv(cl_i->fd, (cl_i->buf+cl_i->busy_len_in_buf), (sizeof(cl_i->buf) - cl_i->busy_len_in_buf), flag_recv);  // 1
+                        if (len_recieved < 0) {
+                            if (errno == EWOULDBLOCK){
+                                // NEED TRY AGAIN - WAIT NEXT session
+                            } else {
+                                cl_i->cur_state = CLIENT_STATE_CLOSED;          // just error
                             }
+                            continue_recv = false;
+                            // continue;                                        // can not be
+                        } else if (len_recieved == 0) {
+                            cl_i->cur_state = CLIENT_STATE_CLOSED;
+                            continue_recv = false;
+                            // disconnect(sockets, &socket_set, i);
+                            // continue;                                        // can not be
+                        }else{
 
-                            cl_i->busy_len_in_buf += len_recieved;
-                            flag_parser = parse_message_client(cl_i);
+                            /* if we receive anything -> work more as can */
+
+                            cl_i->busy_len_in_buf += len_recieved;                                                              // 2
+
+                            flags_parser_t flag_parser = parse_message_client(cl_i);                                            // 3
+
+                            if (flag_parser == ANSWER_READY_to_SEND  /*|| flag_parser == RECEIVED_PART_IN_DATA*/) {             // 4 
+                                cl_i->busy_len_in_buf = 0;
+                                continue_recv = false;
+                                // break;
+                            } else if (flag_parser == RECEIVED_PART_IN_DATA){
+                                cl_i->busy_len_in_buf = 0;
+                            }
+                            
+                            // .. cl_i->is_writing = true; // must be inside parser check it
+
+                            sprintf(logbuf, "message %s receive form socket %s:\n", cl_i->buf, cl_i->addr.sa_data);
+                            log_queue(th->fd.logger, logbuf);
                         }
-                        // .. cl_i->is_writing = true; // must be inside parser check it
-
-
-
-
-                        sprintf(logbuf, "message receive form socket %s:\n", cl_i->addr, cl_i->buf);
-                        log_queue(th->fd.logger, logbuf);
                     }
                 }
                 /* do main work:: send ok, save message in file or send error to client socket */
@@ -375,105 +361,6 @@ void work_cicle(inst_thread_t * th)
 
                         // delet below !
 
-
-                        // buf[len_recieved] = '\0';
-                        // work with message :: in buff
-                        if (strncmp(UPPERCASE_STR_N(buf, 2), "/q", 2) == 0){
-                            printf("%s #%d want disconnecting\n", clients[i].name, i);
-                            disconnect(sockets, &socket_set, i);
-                            continue;
-                        } else if(strncmp(buf, "/?", 2) == 0){
-                            sprintf(buf, "Here is users %d:\n", n_socket - 1);
-                            int user_i;
-                            for (user_i=1; user_i < n_socket; user_i++){
-                                sprintf(temp_buf, "#%d sock %d - %s\n", user_i, sockets[user_i], clients[user_i].name);
-                                strcat(buf, temp_buf);
-                            }
-                            
-                            if (send(sockets[i], buf, strlen(buf), 0) < 0) {
-                                // here must be disconnect this socket
-                                perror("Was disconnected without normal work");
-                                disconnect(sockets, &socket_set, i);
-                                continue;
-                            }
-                        }else if(strncmp(buf, "/me:", 4) == 0){
-                            free(clients[i].name); // delet old
-                            int len_i;
-                            for(len_i = 4; len_i < strlen(buf); len_i++){
-                                temp_buf[len_i-4] = buf[len_i];
-                            }
-                            temp_buf[len_i] = '\0';
-                            clients[i].name = malloc(strlen(temp_buf)*sizeof(char));
-                            // memcpy(clients[i].name, temp_buf, strlen(temp_buf));
-                            strcpy(clients[i].name, temp_buf);
-
-                            sprintf(buf, "Ok\n");
-                            if (send(sockets[i], buf, strlen(buf), 0) < 0) {
-                                perror("Was disconnected without normal work");
-                                disconnect(sockets, &socket_set, i);
-                                continue;
-                            }
-                        }else if(strncmp(buf, "/send:", 6) == 0){
-                            int user_num = 0;
-                            int len_i, new_len;
-                            for (len_i = 6; (len_i < strlen(buf)) && (buf[len_i] !=':'); len_i++){
-                                if (isdigit(buf[len_i]))
-                                    user_num = user_num*10 + ((int) buf[len_i] - (int) '0');
-                            }
-                            if (len_i == strlen(buf)){
-                                printf("error syntaxis\n");
-                                sprintf(buf, "error syntaxis to %d.\n", user_num);
-                                if (send(sockets[i], buf, strlen(buf), 0) < 0) {    // err - source user
-                                    perror("Was disconnected without normal work");
-                                    disconnect(sockets, &socket_set, user_num);
-                                }
-                                continue;
-                            }
-                            if (user_num >= n_socket) {
-                                printf("socket num not exist!\n");
-                                sprintf(buf, "error num - %d not exist!\n", user_num);
-                                if (send(sockets[i], buf, strlen(buf), 0) < 0) {    // err - source user
-                                    perror("Was disconnected without normal work");
-                                    disconnect(sockets, &socket_set, user_num);
-                                }
-                                continue;
-                            }
-                            // for (new_len = 0; (new_len < BUFSIZE) && (len_i < strlen(buf)); len_i++) temp_buf[new_len++] = buf[len_i];
-                            strncpy( temp_buf, (buf+len_i), (strlen(buf) - len_i) );
-                            temp_buf[(strlen(buf) - len_i)] = '\0'; // strlen(temp_buf)
-
-                            // sprintf(buf, "%s", temp_buf);
-                            if ((user_num < MAX_SOCKETS) && ((strlen(buf) - len_i) > 1 ) ){
-                                if (send(sockets[user_num], temp_buf, strlen(temp_buf), 0) < 0) { // ok - destination user 
-                                    perror("Was disconnected without normal work");
-                                    disconnect(sockets, &socket_set, user_num);
-                                    continue;
-                                }
-                                sprintf(buf, "Mess success to %d.\n", user_num);
-                                if (send(sockets[i], buf, strlen(buf), 0) < 0) {    // ok - source user 
-                                    perror("Was disconnected without normal work");
-                                    disconnect(sockets, &socket_set, user_num);
-                                    continue;
-                                }
-                            } 
-                            else
-                            {
-                                sprintf(buf, "None sended to %d.\n", user_num);
-                                if (send(sockets[i], buf, strlen(buf), 0) < 0) {    // err - source user
-                                    perror("Was disconnected without normal work");
-                                    disconnect(sockets, &socket_set, user_num);
-                                    continue;
-                                }
-                            }
-                            
-                        }else{
-                            // here will check for what message and sending
-                            
-                            if (send(sockets[i], buf, strlen(buf), 0) < 0) {
-                                perror("send");
-                                break;
-                            }
-                        }
                         
                     }
                     
@@ -483,4 +370,50 @@ void work_cicle(inst_thread_t * th)
 
     // free in main yeh?
 
+}
+
+
+
+void init_data_thread( threads_var_t * t_data, server_t server)
+{
+    
+    pthread_mutex_t can_use_general_th_data;
+    pthread_mutex_t can_see_condition;
+    pthread_cond_t is_work;
+    pthread_mutex_init(&can_use_general_th_data, NULL);
+    pthread_mutex_init(&can_see_condition , NULL);
+    pthread_cond_init(&is_work, NULL);
+
+    t_data->gen.mutex_queue         = &can_use_general_th_data;
+    t_data->gen.mutex_use_cond      = &can_see_condition;
+    t_data->gen.is_work             = &is_work; 
+    t_data->gen.sock_q              = malloc(sizeof(*t_data->gen.sock_q)); //  malloc(sizeof(th_queue_t))
+    t_data->gen.sock_q->next        = NULL;
+
+    // for i = 0; i < NUM_OF_WOREKER + 1; i++
+    t_data->srv_sk = server.socket;          //[i]
+    t_data->log_id = server.log_id;          //[i]
+        
+}
+
+void destroy_data_thread(threads_var_t * t_data)
+{
+    pthread_mutex_destroy(t_data->gen.mutex_queue);
+    pthread_mutex_destroy(t_data->gen.mutex_use_cond);
+    pthread_cond_destroy(t_data->gen.is_work);
+
+    free_thread_queue_sock(t_data->gen.sock_q);
+    free(t_data);                                   // here will be free(t_data->gen) if "t_data->gen" is static 
+                                                    // ! see in type declaration of threads_var_t
+}
+
+// here declared or in thread ?
+void free_thread_queue_sock(th_queue_t * th_queue_sock)
+{
+    th_queue_t * prev_th_sock;
+    while(th_queue_sock != NULL){
+        prev_th_sock = th_queue_sock;
+        th_queue_sock = th_queue_sock->next;
+        free(prev_th_sock);
+    }
 }

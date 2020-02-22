@@ -29,7 +29,7 @@ save here
 . cdo error code
 . cdo state in send mess
 . cdo controll client data
-
+. cdo counter error command
 
 +. do double linked list
 . do read while recv or strlen(body + buf) < MAX_SMTP_MESSAGE
@@ -39,5 +39,14 @@ save here
 . test big data
 
 . сделать перенос (если команда не в начале сообщения лишнюю часть выкинуть и перекопировать буфер в начало (не уверен что так делают, но мне нравится))
+. проверить что повторный ввод команды работает корректно (все выделения не падают)
+. добавить еще 2 файла где будет push_err save_msg и где будут handlers
 
 . test client 
+
+
+2 Question
+1. what doing with windows and linux crlf and lf
+2. i must receive message (with /r/n only? )
+    - continiusly saved last buffer?
+    - or can clear (how i doing except TEXT in DATA )

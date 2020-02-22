@@ -2,16 +2,30 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "gcc-5 build active file",
+            "label": "build test debug",
             "command": "/usr/bin/gcc-5",
             "args": [
-                "-g",
-                "${file}",
+                "-Wall",
+                "-Werror",
+                "-O2",
+                "-g3",
+                "${workspaceFolder}/server/mta_thread.c",
+                "${workspaceFolder}/server/mta_process.c",
+                "${workspaceFolder}/server/mta_communication.c",
+                "${workspaceFolder}/server/mta_func_sock.c",
+                "${workspaceFolder}/server/test_metod_mta.c",
                 "-o",
-                "${fileDirname}/${fileBasenameNoExtension}"
+                "${workspaceFolder}/server/test_mta",
+                "-lrt",
+                "-lpthread",
+                "-lresolv"
             ],
             "options": {
                 "cwd": "/usr/bin"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
             }
         }
     ],

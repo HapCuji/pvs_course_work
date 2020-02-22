@@ -152,7 +152,7 @@ void free_process(struct process_t* proc)
 //------------------------------
 
 // save
-bool save_to_file(char* fname, char* txt, bool info)
+bool save_msg_to_file(char* fname, char* txt, bool info)
 {
     FILE* lf = fopen(fname, "a");
     char msg[BUFSIZE];

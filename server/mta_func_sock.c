@@ -39,77 +39,128 @@ flags_parser_t parse_message_client(client_list_t * cl){
     else 
     {
         /* == CLIENT_STATE_DATA */
+        flag = handle_DATA(cl);
         /* => receive in buffer while can */
     }
     
     return flag;
 } 
 
+flags_parser_t handle_RSET(client_list_t * cl){
+    flags_parser_t flag = RECEIVED_ERROR_CMD;
+
+
+    return flag;
+}
 flags_parser_t handle_VRFY(client_list_t * cl){
-    flags_parser_t flag;
+    flags_parser_t flag = RECEIVED_ERROR_CMD;
 
 
     return flag;
 }
 
 flags_parser_t handle_NOOP(client_list_t * cl){
-    flags_parser_t flag;
+    flags_parser_t flag = RECEIVED_ERROR_CMD;
 
 
     return flag;
 }
 
 flags_parser_t handle_QUIT(client_list_t * cl){
-    flags_parser_t flag;
+    flags_parser_t flag = RECEIVED_ERROR_CMD;
 
 
     return flag;
 }
 
-#define END_DATA            "\r\n.\r\n"     // in windows too?
+
 flags_parser_t handle_DATA(client_list_t * cl){
-    flags_parser_t flag;
-    int start_search = strlen(STR_DATA);
-    if (cl->cur_state == CLIENT_STATE_DATA) 
-        start_search = 0;                   // already inside
-    char * end = strstr(cl->buf+start_search, END_DATA);
+    flags_parser_t flag = RECEIVED_ERROR_CMD;
+    if (cl->cur_state != CLIENT_STATE_DATA) {
 
-    if (end != NULL){
-        get_buf_to_body(cl, end);
+        cl->data->body_len = 0;               /*for new message must be clean last value */
 
-        strcpy(cl->buf, REPLY_DATA);
+        if (cl->data->to[0] == NULL){
+            strcpy(cl->buf, REPLY_DATA_ERR_START);
+            cl->cur_state = CLIENT_STATE_WHATS_NEWS;
+        } else {
+            strcpy(cl->buf, REPLY_DATA_START);
+            cl->cur_state = CLIENT_STATE_DATA;
+        }
+
         flag = ANSWER_READY_to_SEND;
         cl->is_writing = true;
-    } else {                                // need more data
 
-        
-        
-        flag = RECEIVED_PART_IN_DATA;
-        cl->is_writing = false;
+    } else {                                    // already inside
+        char * end = strstr(cl->buf, END_DATA);
+
+        if (end != NULL){
+            add_buf_to_body(cl, end);
+            int status = save_message(cl->data, SAVE_TO_SHARE_FILE); 
+
+            if (status == NOT_HAVE_RECIPIENTS)
+                strcpy(cl->buf, REPLY_DATA_ERR_START);
+            else
+                strcpy(cl->buf, REPLY_DATA_END_OK);
+
+            flag = ANSWER_READY_to_SEND;
+            cl->is_writing = true;
+
+        } else {                                // need more data
+
+            add_buf_to_body(cl, NULL);
+            
+            flag = RECEIVED_PART_IN_DATA;
+            cl->is_writing = false;
+        }
     }
-
-
-    cl->cur_state = CLIENT_STATE_DATA;
-
 
     return flag;
 }
 
-#define STEP_RECIPIENTS     15
+void add_buf_to_body(client_list_t * cl, char * end){                       // check it!
+    // int buf_len = strlen(cl->buf);
+    int buf_len = cl->busy_len_in_buf;
+    if (end != NULL)
+        buf_len = end - cl->buf;                                            // the end not saved as data
+
+    if ( cl->data->body_len + buf_len > cl->data->body_size ) {
+
+        if( (cl->data->body_size + buf_len) >= MAX_SIZE_SMTP_DATA) {
+            save_message(cl->data, SAVE_TO_TEMP_FILE);                      // here will be clean cl->body 
+        } else {                                                            // else => can allocate more
+            get_mem_to_body(cl->data);                                      /*first allocate for new body (be only here)*/
+        }
+    } 
+
+    // strcat(cl->data->body, cl->buf);                                     // it is can be wrong we can send not string data!!!
+    memcpy( (cl->data->body + cl->data->body_len), cl->buf, buf_len);       // cl->busy_len_in_buf = 0;must be AFTER IT (see in mta_thread.c recv cicle)
+    cl->data->body_len += buf_len;
+}
+
+void get_mem_to_body (client_msg_t * msg){
+    if (msg->body == NULL){
+        msg->body = malloc(STEP_ALLOCATE_BODY*sizeof(char));
+        msg->body_size = STEP_ALLOCATE_BODY;
+        msg->body_len = 0;        
+    } else if (msg->body_size < MAX_SIZE_SMTP_DATA) {
+        msg->body_size += STEP_ALLOCATE_BODY;
+        msg->body = realloc(msg->body, (msg->body_size)*sizeof(char)); // check as it work
+    }
+}
 
 /*mail addres "->to" will be clear every time as call it function for every message session (mb it is not right?)*/
 flags_parser_t handle_RCPT(client_list_t * cl){
     flags_parser_t flag;
 
     int start_next_mail = strlen(STR_RCPT); // strlen(cl->buf) - 
-    int len = 0;
     char * to = NULL;
 
     to = get_mail(cl->buf, &start_next_mail);
     if (to != NULL){
 
         /*TODO right step (now STEP_RECIPIENTS is max) <= need counter (global in "struct to"*/
-        free_client_forward(cl->data->to); // if not empty
+        free_client_forward(cl->data->to);                  // if not empty
         cl->data->to = malloc(STEP_RECIPIENTS*sizeof(*cl->data->to));
         for (int i =0; i < STEP_RECIPIENTS; i++) 
             *(cl->data->to+i) = NULL;
@@ -127,7 +178,7 @@ flags_parser_t handle_RCPT(client_list_t * cl){
         /*TODO more checking party: 1 - for error; 2 - for save in buffer not whole data in don't have /r/n !? */
         strcpy(cl->buf, REPLY_RCPT_OK);
     } else {
-        sprcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
+        strcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
     }
 
     flag = ANSWER_READY_to_SEND;
@@ -148,7 +199,7 @@ flags_parser_t handle_MAIL(client_list_t * cl){
         cl->data->from = from;
         strcpy(cl->buf, REPLY_MAIL_OK);
     } else {
-        sprcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
+        strcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
     }
 
     flag = ANSWER_READY_to_SEND;
@@ -157,12 +208,6 @@ flags_parser_t handle_MAIL(client_list_t * cl){
 
     return flag;
 }
-
-#define START_MAIL      '<'
-#define END_MAIL        '>'
-#define DOG_IN_MAIL     '@'
-#define DOT_IN_MAIL     '.'
-#define SPACE_IN_MAIL   ' ' // MUST be false
 
 // start len will be changed to real start (after compare !!)
 // return - end_len after first "good" compare
@@ -289,14 +334,14 @@ th_queue_t * pop_client_from_queue(th_queue_t * cl_queue)
     return client;
 }
 
-int init_new_client(client_list_t *client_list_p, int client_sock, struct sockaddr new_addr)
+int init_new_client(client_list_t **client_list_p, int client_sock, struct sockaddr new_addr)
 {
     int status = 0;
     client_list_t * new_client = (client_list_t *) malloc(sizeof(client_list_t));
     
     // init parameter of client
     new_client->addr                    = new_addr;
-    new_client->cur_state               = CLIENT_STATE_START;
+    new_client->cur_state               = CLIENT_STATE_START;       // must be sended greeting (as first message)
     new_client->fd                      = client_sock;
     new_client->is_writing              = true;                 // we recieve first message and must send answer 
                                                                 // (but not sure, it if we can't send already)
@@ -305,8 +350,11 @@ int init_new_client(client_list_t *client_list_p, int client_sock, struct sockad
                                                                 // i will try save message on disk and use only one pointer !  
     new_client->data->file_to_save      = NULL;                 // malloc(MAX_FILE_SIZE*sizeof(char)); // i thinck it not here
     new_client->data->from              = NULL;
-    *new_client->data->to               = NULL;
+    new_client->data->to                = malloc(STEP_RECIPIENTS*sizeof(char*));
+    for(int i = 0; i < STEP_RECIPIENTS; i++) new_client->data->to[i] = NULL;
     new_client->data->body              = NULL;
+    new_client->data->body_len          = 0;
+    new_client->data->body_size         = 0;
     new_client->data->was_start_writing = false;                // true only for long message
     
     new_client->busy_len_in_buf         = 0;
@@ -314,11 +362,11 @@ int init_new_client(client_list_t *client_list_p, int client_sock, struct sockad
 
     // ADD item to begining of list threads socket (clients)
     new_client->last                    = NULL;
-    new_client->next                    = client_list_p;
-    if (client_list_p != NULL)                                  // if not first value
-        client_list_p->last             = new_client;
+    new_client->next                    = *client_list_p;
+    if ((*client_list_p) != NULL)                                  // if not first value
+        (*client_list_p)->last          = new_client;
     
-    client_list_p                       = new_client;           // main pointer always will be content the last value
+    *client_list_p                      = new_client;           // main pointer always will be content the last value
     // client_list_p->next = not changing == last value
 
     return status;
@@ -361,6 +409,7 @@ void free_client_message(client_msg_t * client_data){
 void free_client_forward(char ** to){
     if (to != NULL)            {
         while (*to != NULL) free(*to++); /* it is if we use not static size of mail*/
+        
         free(to);
     }
 }

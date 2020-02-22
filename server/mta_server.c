@@ -71,34 +71,6 @@ get post and save
 // #include <pthread.h>
 
 
-// save
-bool save_to_file(char* fname, char* txt, bool show_time)
-{
-    FILE* logf = fopen(fname, "a");
-    char msg[BUFSIZE];
-    if (!logf) {
-        sprintf(msg, "error opening log file(%s)", fname);
-        perror(msg);
-        return false;
-    }
-    // variable add '\n' or not
-    (txt[strlen(txt) - 1] == '\n') ? sprintf(msg, "%s", txt) 
-                                    : sprintf(msg, "%s\n", txt); 
-    // write with timetag
-    if (show_time) {
-        time_t ct = time(NULL);
-        char* t = ctime(&ct);
-        t[strlen(t) - 1] = '\0'; 
-
-        fprintf(logf, "[%s]: %s", t, msg);
-    } else  // without timetag
-        fprintf(logf, "%s", msg);
-        
-    fflush(logf);
-    fclose(logf);
-    return true;
-}
-
 
 /* now here will be only one process */
 static server_t server; // do really need static 
@@ -139,11 +111,11 @@ int main(int argc, char**argv)
     pthread_t * controller_thread           = malloc(sizeof(pthread_t));
     pthread_t * work_threads                = malloc(NUM_OF_WORKER*sizeof(pthread_t));
     threads_var_t * t_data                  = malloc(sizeof(threads_var_t));
-    init_data_thread(t_data);
+    init_data_thread(t_data, server);
 
     pthread_create(controller_thread, NULL, run_thread_controller, t_data);
     for (i = 0; i < NUM_OF_WORKER; i++){
-        pthread_create(work_threads[i], NULL, run_thread_worker, t_data);
+        pthread_create(&work_threads[i], NULL, run_thread_worker, t_data);
     }
 
     // here can be user controll
@@ -167,54 +139,10 @@ int main(int argc, char**argv)
 
 void gracefull_exit()
 {
-
+    return;
 }
 
 
-
-void init_data_thread( threads_var_t * t_data)
-{
-    
-    pthread_mutex_t can_use_general_th_data;
-    pthread_mutex_t can_see_condition;
-    pthread_cond_t is_work;
-    pthread_mutex_init(&can_use_general_th_data, NULL);
-    pthread_mutex_init(&can_see_condition , NULL);
-    pthread_cond_init(&is_work, NULL);
-
-    t_data->gen.mutex_queue         = &can_use_general_th_data;
-    t_data->gen.mutex_use_cond      = &can_see_condition;
-    t_data->gen.is_work             = &is_work; 
-    t_data->gen.sock_q              = malloc(sizeof(*t_data->gen.sock_q)); //  malloc(sizeof(th_queue_t))
-    t_data->gen.sock_q->next        = NULL;
-
-    // for i = 0; i < NUM_OF_WOREKER + 1; i++
-    t_data->srv_sk = server.socket;          //[i]
-    t_data->log_id = server.log_id;          //[i]
-        
-}
-
-void destroy_data_thread(threads_var_t * t_data)
-{
-    pthread_mutex_destroy(&t_data->gen.mutex_queue);
-    pthread_mutex_destroy(&t_data->gen.mutex_use_cond);
-    pthread_cond_destroy(&t_data->gen.is_work);
-
-    free_thread_queue_sock(t_data->gen.sock_q);
-    free(t_data);                                   // here will be free(t_data->gen) if "t_data->gen" is static 
-                                                    // ! see in type declaration of threads_var_t
-}
-
-// here declared or in thread ?
-void free_thread_queue_sock(th_queue_t * th_queue_sock)
-{
-    th_queue_t * prev_th_sock;
-    while(th_queue_sock != NULL){
-        prev_th_sock = th_queue_sock;
-        th_queue_sock = th_queue_sock->next;
-        free(prev_th_sock);
-    }
-}
 
 // can try like in example create mq_queue and 
 int init_socket(int port, char *str_addr)
@@ -248,14 +176,13 @@ int init_socket(int port, char *str_addr)
 /* my own engine for recieve server error */
 /* in future (todo):: input can be - pointer and i can here something assignment:: 
 mb - function for calling in ""main"" func (if pointer not null) or more*/
-#define MSG_ERR_SIZE     40
 
 void push_error(int num_error)
 {
     bool need_exit = false;
-    bool must_be_close_thread = false;
-    bool must_be_close_proc = false;
-    bool must_be_perror = false;  // the same need_exit?
+    // bool must_be_close_thread = false;
+    // bool must_be_close_proc = false;
+    // bool must_be_perror = false;  // the same need_exit?
 
     char msg[MSG_ERR_SIZE];
     switch (num_error)
@@ -273,11 +200,11 @@ void push_error(int num_error)
             sprintf(msg, "Server(%d): fork() failed\n", getpid()); 
             break;
         case ERROR_SELECT:
-            sprintf(msg, "Error select in thread = %d, proc = %d\n", pthread_self(), getpid());
+            sprintf(msg, "Error select in thread = %lu, proc = %d\n", (unsigned long int)pthread_self(), getpid());
             // must_be_close_thread = true;
             break;
         case ERROR_ACCEPT:
-            sprintf(msg, "Error accept in thread = %d, proc = %d\n", pthread_self(), getpid());
+            sprintf(msg, "Error accept in thread = %lu, proc = %d\n", (unsigned long int)pthread_self(), getpid());
             break;
         default:
             sprintf(msg, "Somthing wrong #%d\n", num_error);

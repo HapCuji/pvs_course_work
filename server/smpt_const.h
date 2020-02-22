@@ -38,7 +38,9 @@
 #define REPLY_RCPT_OK           REPLY_OK
 #define REPLY_ADMIN             "252 Administrative prohibition\r\n"
 // 3xx          
-#define REPLY_DATA              "354 Enter message, ending with \".\" on a line by itself\r\n"
+#define REPLY_DATA_START        "354 Enter message, ending with \".\" on a line by itself\r\n"
+#define REPLY_DATA_END_OK       REPLY_OK
+#define REPLY_DATA_ERR_START    "503 Wrong command sequence (not one recepients forward)\r\n"
 // 4xx          
 #define REPLY_TERMINATE         "421 closing server\r\n"
 #define REPLY_UN_MAIL           "450 mailbox unavailable\r\n"

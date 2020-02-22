@@ -19,7 +19,7 @@
 // socket state
 #define SOCKET_NOSTATE      -1
 
-#define LOG(msg) save_to_file("server_log", msg, true)
+#define LOG(msg) save_msg_to_file("server_log", msg, true)
 
 // struct of process data
 struct process_t {
@@ -66,7 +66,7 @@ void disconnect(int *socket_list, fd_set * socket_set, int deleted_i); //, int *
 struct process_t* init_process(int* fd, pid_t pid_logger) ;
 void free_process(struct process_t* proc);
 
-bool save_to_file(char* fname, char* txt, bool info);
+bool save_msg_to_file(char* fname, char* txt, bool info);
 pid_t create_logger();
 void body_logger(int* fd, pid_t* pid);
 void run_logger(struct process_t* pr);
