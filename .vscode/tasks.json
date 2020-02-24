@@ -3,7 +3,7 @@
         {
             "type": "shell",
             "label": "build test debug",
-            "command": "/usr/bin/gcc-5",
+            "command": "/usr/bin/gcc",
             "args": [
                 "-Wall",
                 "-Werror",
@@ -16,6 +16,31 @@
                 "${workspaceFolder}/server/test_metod_mta.c",
                 "-o",
                 "${workspaceFolder}/server/test_mta",
+                "-lrt",
+                "-lpthread",
+                "-lresolv"
+            ],
+            "options": {
+                "cwd": "/usr/bin"
+            },
+            "group": "build"
+        },
+        {
+            "type": "shell",
+            "label": "build server debug",
+            "command": "/usr/bin/gcc",
+            "args": [
+                "-Wall",
+                "-Werror",
+                "-O2",
+                "-g3",
+                "${workspaceFolder}/server/mta_thread.c",
+                "${workspaceFolder}/server/mta_process.c",
+                "${workspaceFolder}/server/mta_communication.c",
+                "${workspaceFolder}/server/mta_func_sock.c",
+                "${workspaceFolder}/server/mta_server.c",
+                "-o",
+                "${workspaceFolder}/server/mta_server",
                 "-lrt",
                 "-lpthread",
                 "-lresolv"

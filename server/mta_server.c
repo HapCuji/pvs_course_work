@@ -70,15 +70,79 @@ get post and save
 
 // #include <pthread.h>
 
+#include <dirent.h> // for file clear and find
 
+void clean_up_maildir(char * clean_path){
+    DIR *dir;
+    struct dirent *ent;
+    char file[256+strlen(clean_path)];
+    char file_inside[256+strlen(clean_path)];
+    if ((dir = opendir (clean_path)) != NULL) {
+        /* print all the files and directories within directory */
+        while ((ent = readdir (dir)) != NULL) {
+            if ( (strcmp(ent->d_name, ".") != 0) && (strcmp(ent->d_name, "..") != 0) ){
+                strcpy(file, clean_path);
+                strcat(file, ent->d_name);
+
+                sprintf(file_inside, "%s/", file);
+                clean_up_maildir(file_inside);
+
+                remove(file);
+                printf ("removed: %s\n", file);
+            }
+        }
+        closedir (dir);
+    } else {
+        /* could not open directory */
+        if (strcmp(clean_path, MAILDIR) == 0){
+            perror ("could not open directory");
+            exit(EXIT_FAILURE);
+            return;
+        } else {
+            // inside is not nessesary (recursive)
+            return;
+        }
+    }
+}
+
+void create_mail_dir_cache(void){
+    char cur_folder[sizeof(MAILDIR)];
+    char * path = malloc(sizeof(MAILDIR)*sizeof(char));
+    strcpy(path, MAILDIR);
+    char * next_folder = NULL; // strchr(path, '/');
+
+    int step = 0, status = 0;
+    while ( (next_folder = strchr(path+step, '/')) != NULL)
+    {
+        step = next_folder - path + 1;
+        strncpy(cur_folder, path, (step));
+        status = mkdir(cur_folder, GENERAL_DIR_MODE);
+        if (status < 0){
+            if (errno != EEXIST){
+                perror("Can't work, in bad dir =(");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+            printf("created dir %s \n", cur_folder);
+        }
+    }
+    free(path);
+}
 
 /* now here will be only one process */
 static server_t server; // do really need static 
+#define COMMAND_SERVER_CLEAR_CACHE                  "-remove cache"
 
 int main(int argc, char**argv)
 {
     if (argc != 3) {
-        printf("Usage: mta_server <addr> <port>\nExample: mta_server 0.0.0.0  1996\n");
+        if ((argc == 2) && (strcmp(argv[1], COMMAND_SERVER_CLEAR_CACHE) == 0)){
+            create_mail_dir_cache();
+            clean_up_maildir(MAILDIR);
+        } else {
+            printf("Usage: \nmta_server <addr> <port>\nExample: mta_server 0.0.0.0  1996\n");
+            printf("Usage: \nmta_server -<cmd>\nExample: mta_server %s\n", COMMAND_SERVER_CLEAR_CACHE);
+        }
         exit(0);
     }
     int i = 0;
@@ -87,6 +151,8 @@ int main(int argc, char**argv)
         port = ((int)argv[2][i] - (int)'0') + port*10;
     if (port <= 0 || port >= 0xFFFF) perror("range"); // need set server range?
 
+    create_mail_dir_cache();
+    clean_up_maildir(MAILDIR);
 
     server.socket = init_socket(port, argv[1]);
     server.log_id = create_logger(server.socket);
@@ -137,8 +203,54 @@ int main(int argc, char**argv)
     return 0;
 }
 
-void gracefull_exit()
+/* mb good way will be if we storage status inside thread and proc instance*/
+void gracefull_exit(int num_cmd)
 {
+    /*here will be close proc and thread with they sockets*/
+    char cmd_name[BUFSIZE];                         // and logger name
+    int status = 0;
+    mqd_t fd_for_send;
+
+    switch(num_cmd){
+
+        case NUM_CMD_THREAD:
+            sprintf(cmd_name, "/exit%d", NUM_CMD_THREAD);
+            fd_for_send = mq_open(cmd_name, O_WRONLY);
+            if (fd_for_send < 0){
+                perror("grace error /exit thread\n");
+                exit(EXIT_FAILURE);
+            }
+            // close thread () (threads close all himself) 
+            // must be before closing logger (there and be sended anything)
+            status = mq_send(fd_for_send, EXIT_MSG_CMD_THREAD, sizeof(EXIT_MSG_CMD_THREAD), THREAD_PRIORITY);
+            if (status < 0){
+                perror("grace error EXIT_MSG_CMD_THREAD\n");
+                exit(EXIT_FAILURE);
+            }
+            break;
+
+        case NUM_CMD_PROC:
+            /*when thread will be closed they will be send cmd on close logger*/
+            sprintf(cmd_name, "/exit%d", NUM_CMD_PROC);
+            fd_for_send = mq_open(cmd_name, O_WRONLY);
+            if (fd_for_send < 0){
+                perror("grace error /exit logger (proc)\n");
+                exit(EXIT_FAILURE);
+            }
+            // close logger (logger unlink mq and instances himself)
+            status = mq_send(fd_for_send, EXIT_MSG_CMD_LOGGER, sizeof(EXIT_MSG_CMD_LOGGER), LOGGER_PRIORITY);
+            if (status < 0){
+                perror("grace error EXIT_MSG_CMD_LOGGER\n");
+                exit(EXIT_FAILURE);
+            }
+            break;
+
+        default:
+            break;
+    }
+    
+    /*the main will close the main socket*/ 
+
     return;
 }
 
@@ -146,7 +258,7 @@ void gracefull_exit()
 
 // can try like in example create mq_queue and 
 int init_socket(int port, char *str_addr)
-{
+{   
 
     // socket
     int server_sk = socket(AF_INET, SOCK_STREAM, 0);
@@ -179,7 +291,7 @@ mb - function for calling in ""main"" func (if pointer not null) or more*/
 
 void push_error(int num_error)
 {
-    bool need_exit = false;
+    bool need_exit = true;      // check it
     // bool must_be_close_thread = false;
     // bool must_be_close_proc = false;
     // bool must_be_perror = false;  // the same need_exit?
@@ -213,7 +325,10 @@ void push_error(int num_error)
     LOG(msg);
     // log_queue(server.fd.logger, msg); // if without exiting
 
-    if (need_exit) gracefull_exit();
+    if (need_exit) {
+        gracefull_exit(NUM_CMD_THREAD);     
+        // gracefull_exit(NUM_CMD_PROC);    // it must be closed in thread
+    }
     // if (must_be_close_proc) close_proc(getpid());
     // if (must_be_close_thread) close_thread(pthread_self());
 

@@ -310,25 +310,25 @@ bool is_start_string(char * buf, char * must_be){
 /*below organ*/
 /*----------------------------*/
 
-void add_client_to_queue(th_queue_t * cl_sock_queue, int sock, struct sockaddr cl_addr)
+void add_client_to_queue(th_queue_t ** cl_sock_queue, int sock, struct sockaddr cl_addr)
 {
     th_queue_t *new_client_sock = (th_queue_t *)malloc(sizeof(th_queue_t));
 
-    new_client_sock->next       = cl_sock_queue; // addres last in addres next
+    new_client_sock->next       = *cl_sock_queue; // addres last in addres next
     new_client_sock->fd_cl      = sock;
     new_client_sock->cl_addr    = cl_addr;
-    cl_sock_queue               = new_client_sock;
+    *cl_sock_queue              = new_client_sock;
 }
 
     /* free( returned_client );*/
     /*<! must be outside !>*/
-th_queue_t * pop_client_from_queue(th_queue_t * cl_queue)
+th_queue_t * pop_client_from_queue(th_queue_t ** cl_queue)
 {
 
     th_queue_t * client; 
 
-    client = cl_queue;
-    cl_queue = client->next;
+    client = *cl_queue;
+    *cl_queue = client->next;
     client->next = NULL;                // AS rest return only "addres" and "fd" for select socket (in var client)
     
     return client;
@@ -343,6 +343,7 @@ int init_new_client(client_list_t **client_list_p, int client_sock, struct socka
     new_client->addr                    = new_addr;
     new_client->cur_state               = CLIENT_STATE_START;       // must be sended greeting (as first message)
     new_client->fd                      = client_sock;
+    new_client->cnt_wrong_cmd           = 0;
     new_client->is_writing              = true;                 // we recieve first message and must send answer 
                                                                 // (but not sure, it if we can't send already)
     // init data of message
@@ -373,21 +374,23 @@ int init_new_client(client_list_t **client_list_p, int client_sock, struct socka
 }
 
 
-void free_one_client_in_list(client_list_t * last_client_list){
+void free_one_client_in_list(client_list_t ** last_client_list){
     client_list_t * closed_client;
 
-    while(last_client_list != NULL){
-        closed_client          = last_client_list;
+    while(*last_client_list != NULL){
+        closed_client          = *last_client_list;
 
         if (closed_client->next != NULL){
             closed_client->next->last = closed_client->last;
         }
 
-        last_client_list    = closed_client->next;
+        *last_client_list    = closed_client->next;             // free we can from just pointer (that contented a address in mem map)
+                                                                // but we can't assign like here (it assign will be for local pointer, not global list!)
 
         closed_client->last = NULL;
         closed_client->next = NULL;
         free_client_message(closed_client->data);
+
         if (closed_client->hello_name != NULL)  
             free(closed_client->hello_name);
         free(closed_client);
@@ -402,13 +405,14 @@ void free_client_message(client_msg_t * client_data){
         free_client_forward(client_data->to);
         if (client_data->body != NULL)          free(client_data->body);
         
-        free(client_data);
+        free(client_data);                      // check is it free (not local)?
     }
 }
 
 void free_client_forward(char ** to){
+    int i = 0;
     if (to != NULL)            {
-        while (*to != NULL) free(*to++); /* it is if we use not static size of mail*/
+        while (*(to+i) != NULL) free(*(to+i++)); /* it is if we use not static size of mail*/
         
         free(to);
     }
@@ -422,23 +426,23 @@ void free_client_forward(char ** to){
 //     free(closed_client);
 // } // we will use close by state only !
 
-int close_client_by_state(client_list_t * closed_client_i){
+int close_client_by_state(client_list_t ** closed_client_i){
     int state = 0;
 
-    client_list_t * prev_client = closed_client_i->last;
+    client_list_t * prev_client = (*closed_client_i)->last;
 
     if (prev_client != NULL){
-        prev_client->next = closed_client_i->next;
+        prev_client->next = (*closed_client_i)->next;
     } /* else if (closed_client_i->next != NULL) { 
 
     }  else is prev == NULL && next == NULL */
 
-    closed_client_i->next = NULL;                   // NOT nesesarry
-    free_one_client_in_list(closed_client_i);
+    (*closed_client_i)->next = NULL;                    // NOT nesesarry
+    free_one_client_in_list(closed_client_i);           // already is pointer on pointer for list
 
-    closed_client_i = prev_client;
+    *closed_client_i = prev_client;
 
-    return state;                               // success is 0
+    return state;                                       // success is 0
 }
 
 client_state next_state(client_state cur_state)

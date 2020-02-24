@@ -72,7 +72,7 @@ static inline char * cutn_buffer(struct buffer *buf, size_t len)
 // new one
 struct process_t* init_process(int* fd, pid_t pid_logger) 
 {
-    struct process_t* proc = (struct process_t*) malloc(sizeof *proc);
+    struct process_t* proc = (struct process_t*) malloc(sizeof( *proc));
     proc->pid = getpid();
     proc->lgpid = pid_logger;
     proc->worked = true;
@@ -256,7 +256,7 @@ void run_logger(struct process_t* pr)
 
                 if (FD_ISSET(pr->fd.cmd, pr->readfds)) {
                     if (mq_receive(pr->fd.cmd, msg, BUFSIZE, NULL) >= 0) {
-                        if (strcmp(msg, "$") == 0) {    // msg start from $
+                        if (strcmp(msg, EXIT_MSG_CMD_LOGGER) == 0) {    // msg start from $
                             sprintf(msg, "Logger(%d): accept command on close\n", getpid());
                             printf("%s", msg);
                             LOG(msg);
@@ -559,7 +559,7 @@ int main(int argc, char **argv) {
 
 void close_logger_pid(pid_t pid){
     sprintf(buf, "/exit%d", pid);
-    mq_send(mq_open(buf, O_WRONLY), "$", sizeof(char), 0);
+    mq_send(mq_open(buf, O_WRONLY), EXIT_MSG_CMD_LOGGER, sizeof(char), NULL);
     LOG("was sended exit to queue logger!");
         // free_process(logger_pid);
 }

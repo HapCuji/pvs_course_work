@@ -4,6 +4,7 @@
 
 #define TEST_WRITE              "I was here! n\ntest write.rn\r\nn\nololon : t\tpassed."
 #define TEST_MAIL_file          "olol@ail.rii"
+#define TEST_MAIL_data_big      "olo@big.data"
 #define TEST_MAIL_data_t2       "koko@olo.rur"
 #define TEST_MAIL_data_t1       "koko2@easy.rur"
 #define TEST_MAIL_data_f        "vova@olo.rur"
@@ -130,12 +131,12 @@ int main(){
     assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "REPLY_DATA_ERR_START");
 
     /*set forward*/
-    cl->data->from = malloc(strlen(TEST_MAIL_data_f)*sizeof(char));
+    cl->data->from = malloc(sizeof(TEST_MAIL_data_f)*sizeof(char));
     strcpy(cl->data->from, TEST_MAIL_data_f);
     cl->data->to = malloc(STEP_RECIPIENTS*sizeof(*cl->data->to));
-    cl->data->to[0] = malloc(strlen(TEST_MAIL_data_t1)*sizeof(char));
+    cl->data->to[0] = malloc(sizeof(TEST_MAIL_data_t1)*sizeof(char));
     strcpy(cl->data->to[0], TEST_MAIL_data_t1);
-    cl->data->to[1] = malloc(strlen(TEST_MAIL_data_t2)*sizeof(char));
+    cl->data->to[1] = malloc(sizeof(TEST_MAIL_data_t2)*sizeof(char));
     strcpy(cl->data->to[1], TEST_MAIL_data_t2);
 
     flag = handle_DATA(cl);
@@ -163,24 +164,38 @@ int main(){
     assert_true(cl->is_writing == true,                 "cl->is_writing true");
     assert_true(cl->data->body_len == 0,                "clear len body");
 
-    char * last_file_name = malloc((SIZE_FILENAME+strlen(TMP_NAME_TAG))*sizeof(char)); // static size
+    free(cl->data->to[0]);
+    cl->data->to[0] = NULL;
+    free(cl->data->to[1]);
+    cl->data->to[1] = NULL;
+    cl->data->to[0] = malloc(sizeof(TEST_MAIL_data_big)*sizeof(char));
+    strcpy(cl->data->to[0], TEST_MAIL_data_big);
+
+    char * last_file_name = malloc((SIZE_FILENAME+sizeof(TMP_NAME_TAG))*sizeof(char)); // static size
+    memset(last_file_name, 0, SIZE_FILENAME);
     /*test big message*/
     char bigbuf[500000+1];
     memset(bigbuf, 'i', 500000*sizeof(char));
-    for (int i = 0; i < 500000; ){
-        int j = 0;
-        while((i < 500000) && (j < BUFSIZE)){
-            cl->buf[j++] = bigbuf[i++];
-        }
-        cl->busy_len_in_buf = strlen(cl->buf);
-        flag = handle_DATA(cl);
-        if (flag != RECEIVED_PART_IN_DATA)
-            break;
-        if (i > MAX_SIZE_SMTP_DATA){
-            if ((cl->data->file_to_save != NULL) && (strcmp(last_file_name, cl->data->file_to_save) != 0)){
-                strcpy(last_file_name, cl->data->file_to_save);
-                printf("\nbeginig new file %s\n", last_file_name);
+    int j = 0, cicle = 4; // 2 Mb of data
+    while (cicle--){
+        for (int i = 0; i < 500000; ){
+            j = 0;
+            while((i < 500000) && (j < BUFSIZE)){
+                cl->buf[j++] = bigbuf[i++];
             }
+            cl->busy_len_in_buf = j;
+            flag = handle_DATA(cl);
+            if (flag != RECEIVED_PART_IN_DATA)
+                break;
+                
+                #ifdef __DEBUG_PRINT__
+            if (i % MAX_SIZE_SMTP_DATA == 0){
+                if ((cl->data->file_to_save != NULL) ){ // (strcmp(last_file_name, cl->data->file_to_save) != 0)
+                    // strcpy(last_file_name, cl->data->file_to_save);
+                    printf("\nbeginig new file %s\n", cl->data->file_to_save);
+                }
+            }
+                #endif // __DEBUG_PRINT__
         }
     }
 
@@ -193,9 +208,13 @@ int main(){
     cl->busy_len_in_buf = strlen(cl->buf);
     flag = handle_DATA(cl);
 
-    printf("\ndata handler tested!\n");
+    free(cl->data->to[0]);
+    printf("\n DATA handler tested! see big data in %s\n", TEST_MAIL_data_big);
 
     printf("\n");
+
+    // test connectec mta
+
 
     printf("\n");
 
@@ -350,7 +369,7 @@ void push_error(int num_error)
     LOG(msg);
     // log_queue(server.fd.logger, msg); // if without exiting
 
-    if (need_exit) gracefull_exit();
+    if (need_exit)      gracefull_exit();
     // if (must_be_close_proc) close_proc(getpid());
     // if (must_be_close_thread) close_thread(pthread_self());
 

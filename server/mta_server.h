@@ -3,12 +3,12 @@
 
 // #define __DEBUG_PRINT__                 /// comment it after test!!
 
-#define TIME_FOR_WAITING_ACCEPT_SEC     600                  
+#define TIME_FOR_WAITING_ACCEPT_SEC     10//600                  
 #define TIME_FOR_WAITING_ACCEPT_NSEC    0
-#define TIME_FOR_WAITING_MESSAGE_SEC    20         
+#define TIME_FOR_WAITING_MESSAGE_SEC    11 // 20         
 #define TIME_FOR_WAITING_MESSAGE_NSEC   800000  // add it to top value
 #define TIME_IDLE_WORK_SEC              600     // if no one connection => our server will or restart or shut down // 10 minut?                 
-#define SELECT_TIMEOUT_LOGGER           240
+#define SELECT_TIMEOUT_LOGGER           40 //240
 
 #define STEP_RECIPIENTS                 15
 #define MAX_SIZE_SMTP_DATA              65536   // 64 Kb on client 
@@ -33,11 +33,16 @@
 #define ERROR_SOMETHING_IN_LOGIC        0xF0000009                  // for example when we receive and have is_writing == true 
 #define ERROR_WORK_WITH_FILE            0xF000000A                  // open write read
 #define ERROR_MKDIR                     0xF000000B
+#define ERROR_LINKED_CMD_LOG            0xF000000C
 
 
 #define PARSE_FAILED                    0xFF0000
-#define MAILDIR                         "/media/sf_kde_neon/_PVS/_server_dat/"
-#define TMP_DIR_FOR_ALL_USER            "/media/sf_kde_neon/_PVS/_server_dat/tmp/" // "\\maildir\\tmp_prepare\\"       // just ? "tmp_prepare/"
+
+#define MAILDIR                         "/home/yoda/tcp-ip/_server_dat/"         // ""/media/sf_kde_neon/_PVS/_server_dat/"
+#define TMP_DIR_FOR_ALL_USER            "/home/yoda/tcp-ip/_server_dat/tmp/"         //"/media/sf_kde_neon/_PVS/_server_dat/tmp/" // "\\maildir\\tmp_prepare\\"       // just ? "tmp_prepare/"
+#define SERVER_LOG_FILE_ABS             "/home/yoda/tcp-ip/_server_dat/server_log.txt"
+#define SERVER_LOG_FILE_REF             "server_log"
+
 #define NEWDIR                          "new/"                          // for save ready message for send
 #define TMPDIR                          "cur/"                          // now in work with copy ro write (by server)
 #define DUSTDIR                         "dust/"                         // mb for user? save deleted or for server save crashed message 
@@ -48,8 +53,8 @@
 
 #define SERVER_ADDR                     "0.0.0.0"
 #define SMTP_PORT                       1996  
-#define NUM_OF_WORKER                   1
-#define NUM_OF_THREAD                   (NUM_OF_WORKER + 1) // +1 - it is accept thread and call workers
+#define NUM_OF_WORKER                   1                                   
+#define NUM_OF_THREAD                   (NUM_OF_WORKER + 1)             // +1 - it is accept thread and call workers
 
 #define TMP_DIR_ID                      1
 #define READY_DIR_ID                    0
@@ -90,17 +95,20 @@
 
 #include <pthread.h>
 
+#include <sys/stat.h> // FOR COMMUNITI MKDIR status dir
+
 #include "smpt_const.h"
 
 // PARSE MAIL
 
-#define START_MAIL      '<'
-#define END_MAIL        '>'
-#define DOG_IN_MAIL     '@'
-#define DOT_IN_MAIL     '.'
-#define SPACE_IN_MAIL   ' ' // MUST be false
-#define END_DATA            "\r\n.\r\n"         // in windows too?
+#define START_MAIL                          '<'
+#define END_MAIL                            '>'
+#define DOG_IN_MAIL                         '@'
+#define DOT_IN_MAIL                         '.'
+#define SPACE_IN_MAIL                       ' ' // MUST be false
+#define END_DATA                            "\r\n.\r\n"         // in windows too?
 
+#define MAX_NUM_WRONG_CMD                   6
 
 // string
 #define UPPERCASE_STR_N(str, n)             for(int k = 0; k<n; k++) { *(str+k) = toupper(*(str + k)); }
@@ -110,7 +118,7 @@
 // logger
 //------------------------------
 
-#define LOG(msg) save_msg_to_file("server_log", msg, true)
+#define LOG(msg) save_msg_to_file(SERVER_LOG_FILE_ABS, msg, true)
 
 typedef struct server_t
 {
@@ -145,7 +153,8 @@ typedef struct client_msg_t
 
 typedef enum client_state{
      CLIENT_STATE_RESET,                // 8
-     CLIENT_STATE_CLOSED,               // -1
+     CLIENT_STATE_SENDING_ERROR,        // next closed! -1
+     CLIENT_STATE_CLOSED,               // -2
      CLIENT_STATE_START,                // 1
      CLIENT_STATE_INITIALIZED,          // 2 // ? really nessesary
      CLIENT_STATE_HELO,                 // 3
@@ -156,7 +165,6 @@ typedef enum client_state{
      CLIENT_STATE_DONE,                 // 3
      CLIENT_STATE_WHATS_NEWS                 // 9  // when we send answer we don't know what new's
     //  CLIENT_STATE_NOOP,              // 10 what next?
-    //  CLIENT_STATE_INVALID,           // 10 what next?
 } client_state;
 
 // more easy save all sockets in list
@@ -165,6 +173,7 @@ typedef struct client_list_S {
     int fd;                             // client socket
     client_state cur_state;             // ready, in sending, cancel (failed, too many error) 
     struct sockaddr addr;   
+    short cnt_wrong_cmd;                // to REPLY_TOO_MANY_ERROR
     char * hello_name;                  // domain name (send in helo/ehlo)
 
     bool is_writing;                    // read == 0; write == 1; 
@@ -217,6 +226,9 @@ typedef struct general_threads_data_t{
     pthread_mutex_t * mutex_queue;      // thread with mutex can exchange with queue
     pthread_mutex_t * mutex_use_cond;   // not sure?
     pthread_cond_t * is_work;           // for thread
+    
+    bool cancel_work;                   // was get command on stoping threads
+
     th_queue_t * sock_q;
     // bool see_queue;
 } general_threads_data_t;
@@ -287,14 +299,15 @@ void init_data_thread( threads_var_t * t_data, server_t server);
 
 // sockets
 int init_new_client(client_list_t ** list, int client_sock, struct sockaddr new_addr);
-int close_client_by_state(client_list_t * rest_client);
+int close_client_by_state(client_list_t ** rest_client);
+void set_all_client_on_close(inst_thread_t * th);
 
 void free_client_message(client_msg_t * client_data);
-void free_one_client_in_list(client_list_t * last_client_list);
+void free_one_client_in_list(client_list_t ** last_client_list);
 void free_client_forward(char ** to);
 
-void add_client_to_queue(th_queue_t * cl_queue, int sock, struct sockaddr cl_addr);
-th_queue_t * pop_client_from_queue(th_queue_t * cl_queue);
+void add_client_to_queue(th_queue_t ** cl_queue, int sock, struct sockaddr cl_addr);
+th_queue_t * pop_client_from_queue(th_queue_t ** cl_queue);
 void free_thread_queue_sock(th_queue_t * th_queue_sock);
 
 // parser
@@ -323,10 +336,12 @@ flags_parser_t handle_default(client_list_t * cl);
 // here file function
 char ** make_user_dir_path(char *path, char *address_to);
 char* make_FILE(char* dir_path, char* name);
-int make_dir(char* dir_path);
 int make_mail_dir(char* dir_path);
 int copy_file(char * src_file, char * target_file, char * flag_to_open );
 void generate_filename(char *seq);
+
+void create_mail_dir_cache(void);
+void clean_up_maildir(char * clean_path);
 
 char * get_domain(char * addres);
 char * get_mail(char * string, int * start_next_mail);
@@ -337,10 +352,24 @@ void add_buf_to_body(client_list_t * cl, char * end);                     // che
 void get_mem_to_body (client_msg_t * msg);
 
 // main
+// typedef struct error_S {
+//     int num_error;
+//     int fd_logger;          // need for calling other proc and thread to exit
+// } error_t;
+
 bool save_msg_to_file(char* fname, char* txt, bool info);
+
+#define NUM_LOGGER_NAME         11
+#define NUM_CMD_PROC            22  
+#define NUM_CMD_THREAD          23
+#define EXIT_MSG_CMD_THREAD     "#"
+#define EXIT_MSG_CMD_LOGGER     "$"
+#define LOGGER_PRIORITY         0 // hz for what, can delet
+#define THREAD_PRIORITY         0 // hz for what, can delet
+
 void push_error(int num_error);
 int init_socket(int port, char *str_addr);
-void gracefull_exit();                              // ? 
+void gracefull_exit(int num_to_close);                              // ? 
 
 
 #endif // __MTA_SERVER_H__

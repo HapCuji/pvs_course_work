@@ -24,7 +24,7 @@ bool save_msg_to_file(char* fname, char* txt, bool show_time)
     } else  // without timetag
         fprintf(logf, "%s", msg);
         
-    fflush(logf);
+    fflush(logf);                   // check it!!
     fclose(logf);
     return true;
 }
@@ -32,12 +32,14 @@ bool save_msg_to_file(char* fname, char* txt, bool show_time)
 void run_logger(inst_proc_t *pr)
 {
     char msg[BUFSIZE];
+    int cnt_exit_msg = 0;
 
-    FD_ZERO(pr->socket_set_read);
-    FD_SET(pr->fd.logger, pr->socket_set_read);
-    FD_SET(pr->fd.cmd, pr->socket_set_read);
-
+    
     while(pr->in_work){
+        FD_ZERO(pr->socket_set_read);
+        FD_SET(pr->fd.logger, pr->socket_set_read);
+        FD_SET(pr->fd.cmd, pr->socket_set_read);
+
         struct timeval timeout;
         timeout.tv_sec = SELECT_TIMEOUT_LOGGER;
         timeout.tv_usec = 0;
@@ -47,26 +49,31 @@ void run_logger(inst_proc_t *pr)
                 sprintf(msg, "Logger(%d): Timeout\n", getpid());
                 printf("%s", msg);
                 LOG(msg);
+                gracefull_exit(NUM_CMD_PROC);
                 break;
             default: {
                 memset(msg, 0x0, sizeof(msg));
                 
                 printf("Logger(%d): i am in case(after select)\n", getpid());
 
+                unsigned int cmd_logger_priority = LOGGER_PRIORITY;
                 // one question what i must doing when receive cmd for thread? mb return it to back by mq_send()
                 if (FD_ISSET(pr->fd.cmd, pr->socket_set_read)) {
-                    if (mq_receive(pr->fd.cmd, msg, BUFSIZE, NULL) >= 0) {
-                        if (strcmp(msg, "$") == 0) {    // msg start from $
+                    if (mq_receive(pr->fd.cmd, msg, BUFSIZE, &cmd_logger_priority) >= 0) {
+                        if (strcmp(msg, EXIT_MSG_CMD_LOGGER) == 0) {                                    // msg start from $
                             sprintf(msg, "Logger(%d): accept command on close\n", getpid());
-                            printf("%s", msg);
-                            LOG(msg);
-                            pr->in_work = false;
-                        }
+                            if( (++cnt_exit_msg) == NUM_OF_WORKER){                                     // when logger received exit/ from all threads WORKERS (and proc if exist)
+                                pr->in_work = false;
+                                printf("last cmd exit came : %s", msg);
+                            }
+                        } else
+                            printf("logger in cmd %s\n", msg);
+                        LOG(msg);
                     }
                 }
                 if (FD_ISSET(pr->fd.logger, pr->socket_set_read)) {
                     if (mq_receive(pr->fd.logger, msg, BUFSIZE, NULL) >= 0) {
-                            printf("Logger(%d): received message : %s\n", getpid(), msg);
+                            // printf("Logger(%d): received message : %s\n", getpid(), msg);
                             LOG(msg);
                     }
                 }
@@ -93,8 +100,7 @@ int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) //
     proc->socket_set_write = malloc(sizeof(*proc->socket_set_write));
     proc->socket_set_read = malloc(sizeof(*proc->socket_set_read)); // not need for logger
 
-    char lgname[20];
-    sprintf(lgname, "/process%d", proc->log_id);
+    char fname_log_cmd[20];
 
     // logger message queue init
     if (proc->pid == proc->log_id) {   // process_is == LOGGER_PROC 
@@ -104,18 +110,23 @@ int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) //
         attr.mq_msgsize = BUFSIZE;
         
         // 0644: write, read, read  
-        proc->fd.logger = mq_open(lgname, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);    
-        // memset(lgname, 0x0, sizeof(lgname)); // for what?
+        sprintf(fname_log_cmd, "/process%d", NUM_LOGGER_NAME); // proc->log_id);
+        proc->fd.logger = mq_open(fname_log_cmd, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);     // can be exist
         
-        sprintf(lgname, "/exit%d", proc->log_id);
-        proc->fd.cmd = mq_open(lgname, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
+        sprintf(fname_log_cmd, "/exit%d", NUM_CMD_PROC); //  proc->log_id);
+        proc->fd.cmd = mq_open(fname_log_cmd, O_EXCL | O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
+        if (proc->fd.cmd == -1){
+            // mq_close(proc->fd.cmd);
+            mq_unlink(fname_log_cmd);
+            proc->fd.cmd = mq_open(fname_log_cmd, O_EXCL | O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
+        }   
 
     } else {    // if (process_is == WORKER_PROC) 
         // sleep(1);
-        // proc->fd.logger = mq_open(lgname, O_WRONLY);  // for send message to logger
-        // memset(lgname, 0x0, sizeof(lgname));
-        // sprintf(lgname, "/exit%d", proc->log_id);
-        // proc->fd.cmd = mq_open(lgname, O_RDONLY);   // for receive command
+        // sprintf(fname_log_cmd, "/process%d", NUM_LOGGER_NAME); // proc->log_id);
+        // proc->fd.logger = mq_open(fname_log_cmd, O_WRONLY);  // for send message to logger
+        // sprintf(fname_log_cmd, "/exit%d", proc->log_id);
+        // proc->fd.cmd = mq_open(fname_log_cmd, O_RDONLY);   // for receive command
     }
 
     if (proc->fd.logger == -1 || proc->fd.cmd == -1) {
@@ -123,7 +134,7 @@ int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) //
         free(proc->socket_set_read);
         free(proc->socket_set_write);
         free(proc);
-        proc = NULL;
+        proc = NULL;                                    // be carefull it does not have an effect (local var)
     } 
     // else if (proc->fd.logger > proc->fd.max || proc->fd.cmd > proc->fd.max) { // check fd message queue
     //     proc->fd.max = (proc->fd.logger > proc->fd.cmd) ? proc->fd.logger 
@@ -136,8 +147,8 @@ int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) //
     return status;
 }
 
-#define LOGGER_PROC         0x01 // 
-#define WORKER_PROC         0x02 // 
+// #define LOGGER_PROC         0x01 // 
+// #define WORKER_PROC         0x02 // 
 
 // can be use 
 // 1 : if use process for worker then for every process have thread with logging
@@ -161,7 +172,8 @@ pid_t create_logger(int fd_server_socket)
 
             pid = getpid();
                 // INITIALIZATION process (log_id == getpid)
-            if(init_process(pr_logger, fd_server_socket, LOGGER_PROC) && pr_logger != NULL)
+            init_process(pr_logger, fd_server_socket, pid); // LOGGER_PROC
+            if (pr_logger != NULL)
             {
                 char msg[BUFSIZE];
                 sprintf(msg, "new log session(%d)", pid);
@@ -192,9 +204,7 @@ pid_t create_logger(int fd_server_socket)
 void free_process(inst_proc_t * proc){
     if (proc != NULL) {
         printf("free_process (%d)\n", proc->pid);
-        free(proc->socket_set_read);
-        free(proc->socket_set_write);
-
+        
             /* Need clear queue every proc or no (now i have only logger*/
         // free message queue if (getpid() == proc->pid == proc->log_id){}
         if (proc->fd.logger != -1)
@@ -203,19 +213,22 @@ void free_process(inst_proc_t * proc){
             mq_close(proc->fd.cmd);
 
         if (proc->log_id == proc->pid) {
-            char* lgname = malloc(sizeof(*lgname) * 20); 
+            char* fname_log_cmd = malloc(sizeof(*fname_log_cmd) * 20); 
 
-            sprintf(lgname, "/process%d", proc->log_id);
-            mq_unlink(lgname);
+            sprintf(fname_log_cmd, "/process%d", NUM_LOGGER_NAME);
+            mq_unlink(fname_log_cmd);
 
-            memset(lgname, 0x00, strlen(lgname));
-            sprintf(lgname, "/exit%d", proc->log_id);
-            mq_unlink(lgname);
+            sprintf(fname_log_cmd, "/exit%d", NUM_CMD_PROC);
+            mq_unlink(fname_log_cmd);
             
-            free(lgname);
+            free(fname_log_cmd);
         }
         // end free message queue
 
+        free(proc->socket_set_read);
+        free(proc->socket_set_write);
+        while(proc->client != NULL)
+            free_one_client_in_list(&(proc->client));           // already is pointer on pointer for list
         free(proc);
         proc = NULL;
     } 

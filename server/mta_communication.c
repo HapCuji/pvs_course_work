@@ -1,7 +1,6 @@
 #include "mta_server.h"
 
 
-#include <sys/stat.h>
 
 
 // method for logger and text
@@ -49,7 +48,7 @@ void generate_filename(char *seq) {
     
     gettimeofday(&tv, tzp);
     srand(tv.tv_usec);
-    sprintf(seq,"%lx.%lx.%x",tv.tv_sec, tv.tv_usec, rand());        // have static size
+    sprintf(seq,"%lx_%lx.%x",tv.tv_sec, tv.tv_usec, rand());        // have static size
 }
 
 // must be free after using! return len + 2 (just use it in any case)
@@ -108,7 +107,6 @@ char** make_user_dir_path(char *path, char *address_to) {
     // checking for => is_good_domain_name(domain_name);    as i know it must be instde RCPT state!
 	char *root_user_dir = concat_strings(path, domain_name);
 	strcat(root_user_dir, "/");                             // it is "sign" for dir
-
     struct stat file_stat;
     
     // cheking if exist  mail_dir!
@@ -147,7 +145,7 @@ int save_message(client_msg_t *message, bool share_name) {
 
     int status = 0;
     FILE *fp = NULL;
-    char filename[SIZE_FILENAME+strlen(TMP_NAME_TAG)];                          // name is static size not nedd to free()
+    char filename[SIZE_FILENAME+sizeof(TMP_NAME_TAG)];                          // name is static size not nedd to free()
     // char *tmp_path = NULL;
     char **user_path = NULL;                                                    // TMP AND READY dir
     char *user_file[2];                                                         // tmp and ready full filename
@@ -159,7 +157,7 @@ int save_message(client_msg_t *message, bool share_name) {
             /* just added */
 		fp = fopen(message->file_to_save, "a");
 
-        // fprintf(fp,"%s",message->body);                                    // i thinck here must be memcpy
+        // fprintf(fp,"%s",message->body);                                    // i think here must be memcpy
         fwrite(message->body, sizeof(char), message->body_len, fp);
 
         fclose(fp); ///
@@ -170,8 +168,11 @@ int save_message(client_msg_t *message, bool share_name) {
 		generate_filename(filename);
         strcat(filename, TMP_NAME_TAG);
         message->file_to_save = make_FILE(TMP_DIR_FOR_ALL_USER, filename);
-
+            #ifdef __DEBUG_PRINT__
+                printf("fopen(message->file_to_save %s", (message->file_to_save));
+            #endif
         fp = fopen(message->file_to_save, "w");
+        fprintf(fp, "Body: ");
         fwrite(message->body, sizeof(char), message->body_len, fp);
        
         fclose(fp); 
