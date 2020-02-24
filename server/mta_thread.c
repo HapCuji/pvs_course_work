@@ -310,6 +310,24 @@ void work_cicle(inst_thread_t * th)
             sprintf(logbuf, "to Worker(%d): came command on close.", (int) th->tid);
             log_queue(th->fd.logger, logbuf);
             set_all_client_on_close(th);
+        } else {
+            // if server ready and have new client not in set  - we need to add it to 
+            if ((cl_socket != 0) && !FD_ISSET(cl_socket, th->socket_set_read)){         // not sure for second condition
+                // 2 - was new socket
+                if (fcntl(cl_socket, F_SETFL, fcntl(cl_socket, F_GETFL, 0) | O_NONBLOCK) < 0) 
+                    push_error(ERROR_FCNTL_FLAG);
+                
+                init_new_client(&th->client, cl_socket, client_addr);    // check it (client is pointer already like in arg init() )
+                th->n_sockets += 1;
+
+                if (th->client->is_writing) FD_SET(th->client->fd, th->socket_set_write); 
+                else                        FD_SET(th->client->fd, th->socket_set_read);
+
+                sprintf(logbuf, "new client_sk accepted %s.", client_addr.sa_data);
+                log_queue(th->fd.logger, logbuf);
+
+                cl_socket = 0;
+            }
         }
 
         FD_ZERO(th->socket_set_read);                      // do we should free last value?
@@ -342,24 +360,6 @@ void work_cicle(inst_thread_t * th)
         if (th->n_sockets == 0)
             continue;
 
-        // if server ready and have new client not in set  - we need to add it to 
-        if ((cl_socket != 0) && !FD_ISSET(cl_socket, th->socket_set_read)){
-            // 2 - was new socket
-            if (fcntl(cl_socket, F_SETFL, fcntl(cl_socket, F_GETFL, 0) | O_NONBLOCK) < 0) 
-                push_error(ERROR_FCNTL_FLAG);
-            
-            init_new_client(&th->client, cl_socket, client_addr);    // check it (client is pointer already like in arg init() )
-            th->n_sockets += 1;
-
-            if (th->client->is_writing) FD_SET(th->client->fd, th->socket_set_write); 
-            else                        FD_SET(th->client->fd, th->socket_set_read);
-
-            sprintf(logbuf, "new client_sk accepted %s.", client_addr.sa_data);
-            log_queue(th->fd.logger, logbuf);
-
-            cl_socket = 0;
-        }
-        
         timeout.tv_sec = TIME_FOR_WAITING_MESSAGE_SEC;          // x sec +
         timeout.tv_usec = TIME_FOR_WAITING_MESSAGE_NSEC;        // 800000;  // + 0.8 sec
         
@@ -409,9 +409,13 @@ void work_cicle(inst_thread_t * th)
 
                             flags_parser_t flag_parser = parse_message_client(cl_i);                                            // 3
 
-                            if (flag_parser == ANSWER_READY_to_SEND  /*|| flag_parser == RECEIVED_PART_IN_DATA*/) {             // 4 
+                            if (flag_parser == ANSWER_READY_to_SEND  || flag_parser == RECEIVED_ERROR_CMD/*|| flag_parser == RECEIVED_PART_IN_DATA*/) {             // 4 
                                 cl_i->busy_len_in_buf = 0;
                                 continue_recv = false;
+                                if (cl_i->cnt_wrong_cmd >= MAX_NUM_WRONG_CMD) {
+                                    cl_i->cur_state = CLIENT_STATE_SENDING_ERROR;              // if error msg was send success
+                                    strcpy(cl_i->buf, REPLY_TOO_MANY_ERROR);
+                                }
                                 // break;
                             } else if (flag_parser == RECEIVED_PART_IN_DATA){
                                 cl_i->busy_len_in_buf = 0;
@@ -435,7 +439,7 @@ void work_cicle(inst_thread_t * th)
                                 continue;
                             }
                             cl_i->cur_state = CLIENT_STATE_INITIALIZED;
-                            cl_i->is_writing = false;                               // THEN will be read from fd
+                            cl_i->is_writing = false;                                           // THEN will be read from fd
                         } else {
                             /* main part */
                             if ( send(cl_i->fd, cl_i->buf, strlen(cl_i->buf), flag_send) < 0){
@@ -443,11 +447,19 @@ void work_cicle(inst_thread_t * th)
                                     cl_i->cur_state = CLIENT_STATE_CLOSED;
                                 continue;
                             }
-                            if (cl_i->cur_state != CLIENT_STATE_SENDING_ERROR) 
-                                cl_i->cur_state = CLIENT_STATE_WHATS_NEWS;
-                            else
-                                cl_i->cur_state = CLIENT_STATE_CLOSED;              // if error msg was send success
+                            
                             cl_i->is_writing = false;
+                            
+                            if (cl_i->cur_state == CLIENT_STATE_SENDING_ERROR || cl_i->cur_state == CLIENT_STATE_DONE) 
+                                cl_i->cur_state = CLIENT_STATE_CLOSED;                          // if error msg was send success
+                            /*
+                            else if (cl_i->cnt_wrong_cmd >= MAX_NUM_WRONG_CMD) {                     // where do it right way (now it in rcve if too many)
+                                cl_i->cur_state = CLIENT_STATE_SENDING_ERROR;              
+                                strcpy(cl_i->buf, REPLY_TOO_MANY_ERROR);
+                                cl_i->is_writing = true;
+                            }
+                            */
+
                         }
 
                         // delet below !

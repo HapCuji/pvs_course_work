@@ -21,16 +21,18 @@
 #define STR_MAIL                "MAIL FROM:"
 #define STR_RCPT                "RCPT TO:"
 #define STR_DATA                "DATA"
-#define STR_NOOP                "NOOP "
-#define STR_RSET                "RSET "
-#define STR_QUIT                "QUIT "
+#define STR_NOOP                "NOOP"
+#define STR_RSET                "RSET"
+#define STR_QUIT                "QUIT"
 #define STR_VRFY                "VRFY "
 
 // replies smtp server
 // change <имя_домена> - "kob.ru" domain name server mta
 // 2xx
 #define REPLY_START             "220 SMTP bmstu kob.ru Transfer Service Ready\r\n"  
-#define REPLY_EHLO              "250-VRFY\r\n250-NOOP\r\n250-RSET\r\n"
+#define REPLY_VRFY_OK           "250-VRFY\r\n"
+#define REPLY_NOOP_OK           "250-NOOP\r\n"
+#define REPLY_RSET_OK           "250-RSET\r\n"
 #define REPLY_QUIT              "221 close connection\r\n"
 #define REPLY_HELO              "250 kob.ru\r\n"    // for mail from: rcpt to:/
 #define REPLY_OK                "250 OK\r\n"    // for mail from: rcpt to:/
@@ -40,7 +42,8 @@
 // 3xx          
 #define REPLY_DATA_START        "354 Enter message, ending with \".\" on a line by itself\r\n"
 #define REPLY_DATA_END_OK       REPLY_OK
-#define REPLY_DATA_ERR_START    "503 Wrong command sequence (not one recepients forward)\r\n"
+#define REPLY_DATA_ERR_START_FROM  "503 Wrong command sequence (not one from addr)\r\n"
+#define REPLY_DATA_ERR_START_TO    "503 Wrong command sequence (not one recepients forward)\r\n"
 // 4xx          
 #define REPLY_TERMINATE         "421 closing server\r\n"
 #define REPLY_UN_MAIL           "450 mailbox unavailable\r\n"
@@ -53,6 +56,8 @@
 #define REPLY_SEQ               "503 Wrong command sequence\r\n"
 #define REPLY_TOO_MANY_ERROR    "503 Too many wrong command\r\n"
 
+#define OK_CMD                  1
+#define ERR_CMD                 0
 #endif // !__SMTP_DEF_H__
 
 /*

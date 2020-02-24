@@ -46,22 +46,89 @@ flags_parser_t parse_message_client(client_list_t * cl){
     return flag;
 } 
 
+// cl->data->to must be clear previsually
+void get_mem_recipients(client_list_t * cl){
+    /*must be check on NULL (but i must set poiner on NULL wherever)*/
+    cl->data->to = malloc(STEP_RECIPIENTS*sizeof(*cl->data->to));
+    for (int i = 0; i < STEP_RECIPIENTS; i++) 
+        *(cl->data->to+i) = NULL;
+
+    /*todo reallocate memory for unlimits*/
+}
+
 flags_parser_t handle_RSET(client_list_t * cl){
     flags_parser_t flag = RECEIVED_ERROR_CMD;
 
+    if (cl->data->from != NULL){
+        free(cl->data->from);
+        cl->data->from = NULL;
+    }
+    free_client_forward(cl->data->to);
+    get_mem_recipients(cl);
+
+    flag = ANSWER_READY_to_SEND;
+    strcpy(cl->buf, REPLY_RSET_OK);
+    cl->busy_len_in_buf = sizeof(REPLY_RSET_OK);  //is not nessesary
+    cl->is_writing = true; 
+    cl->cur_state = CLIENT_STATE_WHATS_NEWS;
 
     return flag;
 }
+
+/*we must check the MX?*/
 flags_parser_t handle_VRFY(client_list_t * cl){
     flags_parser_t flag = RECEIVED_ERROR_CMD;
 
+    int start_next_mail = strlen(STR_VRFY); // strlen(cl->buf) - 
+
+    char * v_mail = NULL;
+    v_mail = get_mail(cl->buf, &start_next_mail);
+    if (v_mail != NULL){
+        char * domain_name = get_domain(v_mail);             // must not be free() becaose it is address (use after
+        if (is_good_domain_name(domain_name)){                       // as i know it must be instde RCPT state! too
+            strcpy(cl->buf, REPLY_VRFY_OK);
+        } else {
+            strcpy(cl->buf, REPLY_UN_MAIL);
+        }
+    } else {
+        strcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
+        cl->cnt_wrong_cmd += 1;
+    }
+
+    flag = ANSWER_READY_to_SEND;
+    cl->busy_len_in_buf = strlen(cl->buf) ;  //is not nessesary, check it?
+    cl->cur_state = CLIENT_STATE_WHATS_NEWS;
+    cl->is_writing = true; 
+
 
     return flag;
 }
+/*
+void set_answer_on_cmd(client_list_t * cl, char * ans, int is_ok_cmd){
+    
+    // flag = ANSWER_READY_to_SEND;
+    strcpy(cl->buf, ans);
+    cl->busy_len_in_buf = strlen(cl->buf) ;  //is not nessesary, check it?
+    cl->is_writing = true; 
+
+    if (is_ok_cmd){
+        
+    } else {
+        cl->cnt_wrong_cmd += 1;
+    }
+
+    return;
+}
+*/
 
 flags_parser_t handle_NOOP(client_list_t * cl){
     flags_parser_t flag = RECEIVED_ERROR_CMD;
 
+    flag = ANSWER_READY_to_SEND;
+    strcpy(cl->buf, REPLY_NOOP_OK);
+    cl->busy_len_in_buf = sizeof(REPLY_NOOP_OK);  //is not nessesary
+    cl->is_writing = true; 
+    cl->cur_state = CLIENT_STATE_WHATS_NEWS;
 
     return flag;
 }
@@ -69,6 +136,13 @@ flags_parser_t handle_NOOP(client_list_t * cl){
 flags_parser_t handle_QUIT(client_list_t * cl){
     flags_parser_t flag = RECEIVED_ERROR_CMD;
 
+    flag = ANSWER_READY_to_SEND;
+    strcpy(cl->buf, REPLY_QUIT);
+    cl->busy_len_in_buf = sizeof(REPLY_QUIT);  //is not nessesary
+    cl->is_writing = true; 
+    cl->cur_state = CLIENT_STATE_DONE;
+
+    /*clean up must be after close by state closed (after send answer!)*/
 
     return flag;
 }
@@ -81,14 +155,19 @@ flags_parser_t handle_DATA(client_list_t * cl){
         cl->data->body_len = 0;               /*for new message must be clean last value */
 
         if (cl->data->to[0] == NULL){
-            strcpy(cl->buf, REPLY_DATA_ERR_START);
+            strcpy(cl->buf, REPLY_DATA_ERR_START_TO);
             cl->cur_state = CLIENT_STATE_WHATS_NEWS;
+            cl->cnt_wrong_cmd += 1;
+        } else if (cl->data->from == NULL) {
+            strcpy(cl->buf, REPLY_DATA_ERR_START_FROM);
+            cl->cur_state = CLIENT_STATE_WHATS_NEWS;
+            cl->cnt_wrong_cmd += 1;
         } else {
             strcpy(cl->buf, REPLY_DATA_START);
             cl->cur_state = CLIENT_STATE_DATA;
         }
 
-        flag = ANSWER_READY_to_SEND;
+        flag = ANSWER_READY_to_SEND; 
         cl->is_writing = true;
 
     } else {                                    // already inside
@@ -98,11 +177,14 @@ flags_parser_t handle_DATA(client_list_t * cl){
             add_buf_to_body(cl, end);
             int status = save_message(cl->data, SAVE_TO_SHARE_FILE); 
 
-            if (status == NOT_HAVE_RECIPIENTS)
-                strcpy(cl->buf, REPLY_DATA_ERR_START);
-            else
+            if (status == NOT_HAVE_RECIPIENTS){
+                strcpy(cl->buf, REPLY_DATA_ERR_START_FROM);         // is very very seldom case (impossible)
+                cl->cnt_wrong_cmd += 1;
+            } else {
                 strcpy(cl->buf, REPLY_DATA_END_OK);
-
+            }
+            
+            cl->cur_state = CLIENT_STATE_WHATS_NEWS;
             flag = ANSWER_READY_to_SEND;
             cl->is_writing = true;
 
@@ -149,6 +231,15 @@ void get_mem_to_body (client_msg_t * msg){
     }
 }
 
+bool exist_in_list_to(client_list_t * cl, char * to){
+    for (int i = 0; cl->data->to[i] != NULL; i++){
+        if (strcmp(cl->data->to[i], to) == 0){
+            return true;
+        }
+    }
+    return false;
+}
+
 /*mail addres "->to" will be clear every time as call it function for every message session (mb it is not right?)*/
 flags_parser_t handle_RCPT(client_list_t * cl){
     flags_parser_t flag;
@@ -161,17 +252,18 @@ flags_parser_t handle_RCPT(client_list_t * cl){
 
         /*TODO right step (now STEP_RECIPIENTS is max) <= need counter (global in "struct to"*/
         free_client_forward(cl->data->to);                  // if not empty
-        cl->data->to = malloc(STEP_RECIPIENTS*sizeof(*cl->data->to));
-        for (int i =0; i < STEP_RECIPIENTS; i++) 
-            *(cl->data->to+i) = NULL;
+        get_mem_recipients(cl);
 
         int cnt_i = 0;
         while (to != NULL){
             *(cl->data->to + cnt_i) = to;
             cnt_i++;
-            if (cnt_i < STEP_RECIPIENTS )
+            if (cnt_i < STEP_RECIPIENTS ){
                 to = get_mail(cl->buf, &start_next_mail);
-            else
+                while((to != NULL) && exist_in_list_to(cl, to)){
+                    to = get_mail(cl->buf, &start_next_mail);
+                }
+            } else
                 break;
         }
 
@@ -179,11 +271,12 @@ flags_parser_t handle_RCPT(client_list_t * cl){
         strcpy(cl->buf, REPLY_RCPT_OK);
     } else {
         strcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
+        cl->cnt_wrong_cmd += 1;
     }
 
     flag = ANSWER_READY_to_SEND;
     cl->is_writing = true;
-    cl->cur_state = CLIENT_STATE_RCPT;
+    cl->cur_state = CLIENT_STATE_RCPT; // check it
 
     return flag;
 }
@@ -193,6 +286,10 @@ flags_parser_t handle_MAIL(client_list_t * cl){
 
     int start_next_mail = strlen(STR_MAIL); // strlen(cl->buf) - 
 
+    if (cl->data->from != NULL){
+        free(cl->data->from);
+    }
+
     char * from = NULL;
     from = get_mail(cl->buf, &start_next_mail);
     if (from != NULL){
@@ -200,6 +297,7 @@ flags_parser_t handle_MAIL(client_list_t * cl){
         strcpy(cl->buf, REPLY_MAIL_OK);
     } else {
         strcpy(cl->buf, REPLY_BAD_ARGS); // can't find mail inside
+        cl->cnt_wrong_cmd += 1;
     }
 
     flag = ANSWER_READY_to_SEND;
@@ -215,6 +313,7 @@ char * get_mail(char * string, int * start_next_mail){
     char * begin_mail = NULL;
     char * end_mail = NULL;
     char * tmp = NULL;
+    char * mail = NULL;
 
     /*right type mail name*/
     begin_mail = strchr(string+*start_next_mail, START_MAIL);            // pointed on '<'
@@ -226,8 +325,11 @@ char * get_mail(char * string, int * start_next_mail){
             tmp = strchr(begin_mail, DOT_IN_MAIL);
             if(tmp == NULL || end_mail <= tmp)   return NULL;
             tmp = strchr(begin_mail, SPACE_IN_MAIL);
-            if(tmp == NULL || end_mail >= tmp)   return NULL;        // if was ' ' inside mail name
+            if(tmp != NULL && end_mail >= tmp)   return NULL;        // if was ' ' inside mail name
             tmp = NULL;
+
+
+
         }
     }
     /*write mail without <> type mail name*/
@@ -235,12 +337,16 @@ char * get_mail(char * string, int * start_next_mail){
     // ..todo it..
 
     /*prepare return*/
-    int len_mail = end_mail - begin_mail; 
-    // if (len_mail > MAX_MAIL_LEN)    return NULL; // need?
-    char * mail = malloc(len_mail*sizeof(char));    // free() only when close, or already write !! check it!
-    strncpy(mail, begin_mail+1, len_mail-1);
-    *start_next_mail += (end_mail - (string+*start_next_mail) );
-
+    if (begin_mail != NULL && end_mail != NULL){
+        int len_mail = end_mail - begin_mail; 
+        // if (len_mail > MAX_MAIL_LEN)    return NULL; // need?
+        mail = malloc(len_mail*sizeof(char));               // free() only when close, or already write !! check it!
+        strncpy(mail, begin_mail+1, len_mail-1);
+        *(mail+len_mail-1) = '\0';                         // must be for defende malloc
+            
+        *start_next_mail += (end_mail - (string+*start_next_mail) );
+    }
+    
     return mail;
 }
 
@@ -250,17 +356,19 @@ flags_parser_t handle_HELO(client_list_t * cl){
     flags_parser_t status = RECEIVED_WHOLE_MESSAGE;
 
     if (strlen(cl->buf)-strlen(STR_HELO) < MAX_MAIL_LEN){
-        char * from = cl->buf+strlen(STR_HELO);
-        char * name = cl->hello_name;
         cl->hello_name = malloc(MAX_MAIL_LEN*sizeof(char));
-        while( *from != '\r' && *from != '\n' && *from != '\0')  // \r must be first !   
+        char * from = cl->buf+strlen(STR_HELO);
+        char * name = cl->hello_name; 
+        while( *from == '.' || *from == '@' ||  (*from >= '0' && *from <= 'z') )  // \r must be first !   
             *name++ = *from++;
-        from = NULL;
+        *name++ = '\0';
+        from = NULL;                                        //cl->buf not changed
         name = NULL;
 
         strcpy(cl->buf, REPLY_HELO);
     } else {
         // strcpy(cl->buf, REPLY_BAD_ARGS); // too long name
+        // cl->cnt_wrong_cmd += 1;
         strcpy(cl->buf, REPLY_HELO);
     }
     
@@ -276,7 +384,7 @@ flags_parser_t handle_default(client_list_t * cl){
 
     flag = RECEIVED_ERROR_CMD;
     strcpy(cl->buf, REPLY_UNREALIZED);
-
+    cl->cnt_wrong_cmd += 1;
     cl->is_writing = true;
     return flag;
 }
@@ -284,12 +392,13 @@ flags_parser_t handle_default(client_list_t * cl){
 /* IF PASSED then add mail else send wrong*/
 bool is_good_domain_name(char * name){
     struct hostent *hosten; 
-    hosten = gethostbyname( name ); 
+    hosten = gethostbyname( name ); //name
     // sa.sin_addr.s_addr = ((in_addr*)hosten->h_addr_list[0])->s_addr;
     if (hosten != NULL)
         return true;
     else 
         return false;
+    /*HZ IS NEED FREE FOR hostent (that was returned)*/
 }
 /* uppercase and compare. Not changing buf*/
 bool is_start_string(char * buf, char * must_be){
@@ -414,7 +523,8 @@ void free_client_forward(char ** to){
     if (to != NULL)            {
         while (*(to+i) != NULL) free(*(to+i++)); /* it is if we use not static size of mail*/
         
-        free(to);
+        free(to);           // check it is it address (not local) // must be first addres on [0] mail
+        to = NULL;          // do not have an effect here
     }
 }
 

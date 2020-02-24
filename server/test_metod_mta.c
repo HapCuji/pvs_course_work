@@ -10,6 +10,8 @@
 #define TEST_MAIL_data_f        "vova@olo.rur"
 
 int global_counter_test;
+int passed;
+int cnt_error;
 void assert_str (char * string, const char * must_be, char * test_name);
 void assert_bool(bool one, bool is, char * test_name);
 char * get_mail(char * string, int * start_next_mail);
@@ -17,8 +19,12 @@ void assers_file_is_exist(char * file_name);
 void assers_is_string_in_file(char * file_name, char * string);
 void assert_true(bool is, char * msg);
 
+void parser_test();
+
 int main(){
     global_counter_test = 0;
+    passed = 0;
+    cnt_error = 0;
     printf("Test started\n");
 
     char buf[100];
@@ -116,7 +122,8 @@ int main(){
 
     free(message->from);   
     remove(message->file_to_save);
-    free(message->file_to_save);    
+    free(message->file_to_save);
+    free(message);    
 
     printf("\nCopy and rename is tested!\n");
     
@@ -131,12 +138,12 @@ int main(){
     assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "REPLY_DATA_ERR_START");
 
     /*set forward*/
-    cl->data->from = malloc(sizeof(TEST_MAIL_data_f)*sizeof(char));
+    cl->data->from = malloc(MAX_MAIL_LEN*sizeof(char));
     strcpy(cl->data->from, TEST_MAIL_data_f);
     cl->data->to = malloc(STEP_RECIPIENTS*sizeof(*cl->data->to));
-    cl->data->to[0] = malloc(sizeof(TEST_MAIL_data_t1)*sizeof(char));
+    cl->data->to[0] = malloc(MAX_MAIL_LEN*sizeof(char));
     strcpy(cl->data->to[0], TEST_MAIL_data_t1);
-    cl->data->to[1] = malloc(sizeof(TEST_MAIL_data_t2)*sizeof(char));
+    cl->data->to[1] = malloc(MAX_MAIL_LEN*sizeof(char));
     strcpy(cl->data->to[1], TEST_MAIL_data_t2);
 
     flag = handle_DATA(cl);
@@ -159,7 +166,7 @@ int main(){
 
     
     flag = handle_DATA(cl);
-    assert_true(cl->cur_state == CLIENT_STATE_DATA,     "CLIENT_STATE_DATA");
+    assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "CLIENT_STATE_DATA");
     assert_true(flag == ANSWER_READY_to_SEND,           "ANSWER_READY_to_SEND");
     assert_true(cl->is_writing == true,                 "cl->is_writing true");
     assert_true(cl->data->body_len == 0,                "clear len body");
@@ -168,8 +175,10 @@ int main(){
     cl->data->to[0] = NULL;
     free(cl->data->to[1]);
     cl->data->to[1] = NULL;
-    cl->data->to[0] = malloc(sizeof(TEST_MAIL_data_big)*sizeof(char));
+    cl->data->to[0] = malloc(MAX_MAIL_LEN*sizeof(char));
     strcpy(cl->data->to[0], TEST_MAIL_data_big);
+
+    printf("big test is started\n");
 
     char * last_file_name = malloc((SIZE_FILENAME+sizeof(TMP_NAME_TAG))*sizeof(char)); // static size
     memset(last_file_name, 0, SIZE_FILENAME);
@@ -208,19 +217,103 @@ int main(){
     cl->busy_len_in_buf = strlen(cl->buf);
     flag = handle_DATA(cl);
 
-    free(cl->data->to[0]);
+    // free(cl->data->to[0]);
+    // cl->data->to[0] = NULL;
     printf("\n DATA handler tested! see big data in %s\n", TEST_MAIL_data_big);
 
     printf("\n");
 
     // test connectec mta
-
-
-    printf("\n");
+    //...
 
     printf("\n");
 
+    printf("\ntest helo handle\n");
+    sprintf(cl->buf, "helo %s", TEST_MAIL_data_f);
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_HELO(cl);
+    assert_str(cl->hello_name, TEST_MAIL_data_f,        "test name HeLO");
+    assert_true(flag == ANSWER_READY_to_SEND,         "ready to send");
+    assert_true(cl->is_writing == true,                 "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_HELO,     "helo state");
 
+
+    /*get_mail already testerd on wrong data*/
+    printf("\ntest mail handle\n");
+
+    sprintf(cl->buf, "mAIL FROM: <%s>", TEST_MAIL_data_f);
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_MAIL(cl);
+    assert_str(cl->data->from, TEST_MAIL_data_f,        "test name mail from");
+    assert_true(flag == ANSWER_READY_to_SEND,           "ready to send");
+    assert_true(cl->is_writing == true,                 "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_MAIL,     "mail state");
+    
+    printf("\ntest RCPT handle\n");
+
+    sprintf(cl->buf, "RCpT TO: <%s><%s> <%s>  <%s>", 
+            TEST_MAIL_data_t1, TEST_MAIL_data_t2, TEST_MAIL_data_t1, TEST_MAIL_data_big);
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_RCPT(cl); 
+    assert_str(cl->data->to[0], TEST_MAIL_data_t1,        "test name RCPT to 1");
+    assert_str(cl->data->to[1], TEST_MAIL_data_t2,        "test name RCPT to 2");
+    assert_str(cl->data->to[2], TEST_MAIL_data_big,        "test name RCPT to 3");
+    assert_true(flag == ANSWER_READY_to_SEND,           "ready to send");
+    assert_true(cl->is_writing == true,                 "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_RCPT,     "rcpt state");
+    
+    // MUST BE CHECK ON DOUBLE AND ERROR MAIL
+    // must be check on cnt_error mail in secuence (delet all in bad)
+    
+    printf("\ntest QUIT handle\n");
+
+    sprintf(cl->buf, "QUIT ");
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_QUIT(cl); 
+    assert_str(cl->buf, REPLY_QUIT,                     "test name QUIT");
+    assert_true(flag == ANSWER_READY_to_SEND,           "ready to send");
+    assert_true(cl->is_writing == true,                 "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_DONE,     "QUIT state");
+    
+    
+    printf("\ntest RSET handle\n");
+
+    sprintf(cl->buf, "RSET ");
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_RSET(cl); 
+    assert_str(cl->buf, REPLY_RSET_OK,                     "test name RSET");
+    assert_true(flag == ANSWER_READY_to_SEND,               "ready to send");
+    assert_true(cl->is_writing == true,                     "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "RSET state");
+    
+    printf("\ntest VRFY handle\n");
+
+    sprintf(cl->buf, "VRFY <OLO@ya.ru>");
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_VRFY(cl); 
+    assert_str(cl->buf, REPLY_VRFY_OK,                      "test ya.ru VRFY");
+    assert_true(flag == ANSWER_READY_to_SEND,               "ready to send");
+    assert_true(cl->is_writing == true,                     "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "VRFY state");
+    
+    sprintf(cl->buf, "VRFY <OLO@gohome.deDATA>");
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_VRFY(cl); 
+    assert_str(cl->buf, REPLY_UN_MAIL,                      "test REPLY_UN_MAIL VRFY");
+    assert_true(flag == ANSWER_READY_to_SEND,               "ready to send");
+    assert_true(cl->is_writing == true,                     "writing true");
+    assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "VRFY state");
+    
+    sprintf(cl->buf, "VRFY <OLO@gohome.de>");
+    cl->busy_len_in_buf = strlen(cl->buf);
+    flag = handle_VRFY(cl); 
+    assert_str(cl->buf, REPLY_VRFY_OK,                      "test gohome.de VRFY");
+    
+    
+    
+    printf("\ntest cmd sequence by parser \n");
+    parser_test();
+    
     // int len = strlen(STR_HELO);
     // char * tmpbuf = malloc( (len+1)*sizeof(char));
     // memset(tmpbuf, 0x71, (len+1)*sizeof(char));
@@ -231,9 +324,78 @@ int main(){
     //     printf(" <%d> ", tmpbuf[i]);
     // }
 
-    printf("\n");
+    printf("\npassed \t= %3d\nerror \t= %3d\n all \t= %3d\n", global_counter_test-cnt_error, cnt_error, global_counter_test);
 
     return 0;
+}
+
+void parser_test(){
+        struct sockaddr client_addr;                            /* для адреса клиента */
+            strcpy(client_addr.sa_data, "0.0.0.0");
+            client_addr.sa_family = 1;
+        client_list_t * cl = NULL;
+        init_new_client(&cl, 1, client_addr);    // check it (client is pointer already like in arg init() )
+        cl->cur_state = CLIENT_STATE_WHATS_NEWS;
+        flags_parser_t flag_parser;
+
+    cl->is_writing = false;
+    sprintf(cl->buf,  "EHLO my-test.ru"             );              
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_HELO,     "REPLY_HELO");  
+                                                  
+    cl->is_writing = false;
+    sprintf(cl->buf,  "VRFY <@my-test.ru>"           );                  
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_VRFY_OK,     "REPLY_VRFY_OK");  
+                                                  
+    cl->is_writing = false;
+    sprintf(cl->buf,  "MAIL from: <a@yandex.ru>"    );                          
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_MAIL_OK,     "REPLY_MAIL_OK");  
+                                                  
+    cl->is_writing = false;
+    sprintf(cl->buf,  "RCPT to: <b@mail.ru>"        );                      
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_RCPT_OK,     "REPLY_RCPT_OK");  
+                                                  
+    cl->is_writing = false;
+    sprintf(cl->buf,  "DATA\r"                        );      
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_DATA_START,     "REPLY_DATA_START");  
+                                                  
+    sprintf(cl->buf,  "Hello, cruel world!\r\n"         );                  
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,                                 "Hello, cruel world!",     "TEXT REPEATED");  
+        assert_true(cl->is_writing == false,                "is_writing FALSE");  
+        assert_true(cl->cur_state == CLIENT_STATE_DATA,     "CLIENT_STATE_DATA");  
+                                                  
+    sprintf(cl->buf,  "Im sleep..\n"                  );          
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_true(flag_parser == RECEIVED_PART_IN_DATA,     "flag_parser TEXT");  
+                                                  
+    sprintf(cl->buf,  END_DATA                           );  
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_DATA_END_OK,     "REPLY_DATA_END_OK");  
+        assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "CLIENT_STATE_DATA");  
+                                                  
+    cl->is_writing = false;
+    sprintf(cl->buf,  "QUIT "                        );      
+    cl->busy_len_in_buf = strlen(cl->buf);
+        flag_parser = parse_message_client(cl);
+        assert_str(cl->buf,             REPLY_QUIT,     "REPLY_QUIT");  
+
+    cl->cur_state = CLIENT_STATE_CLOSED;
+    close_client_by_state(&cl);
+
+    return;                
 }
 
 void assert_true(bool is, char * msg){
@@ -246,6 +408,7 @@ void assert_true(bool is, char * msg){
     if (status == 0){
         printf("#%.2d test - passed - %s\n", global_counter_test, msg);
     } else {
+            cnt_error++;
         printf("#%.2d test - ERROR - %s\n", global_counter_test, msg);
     }
 }
@@ -257,6 +420,7 @@ void assert_bool(bool one, bool is, char * test_name){
     if (one == is){
         printf("#%.2d test - passed - <%s> \n", global_counter_test, test_name);
     } else {
+            cnt_error++;
         printf("#%.2d test - ERROR - <%s>\n", global_counter_test, test_name);
     }   
 }
@@ -272,6 +436,7 @@ void assers_file_is_exist(char * file_name){
     if (status == 0){
         printf("#%.2d test - passed - file exist for %s\n", global_counter_test, file_name);
     } else {
+            cnt_error++;
         printf("#%.2d test - ERROR - file exist for  %s\n", global_counter_test, file_name);
     }
 }
@@ -306,6 +471,7 @@ void assers_is_string_in_file(char * file_name, char * string){
     if (status == 0){
         printf("#%.2d test - passed - file %s contented\n", global_counter_test, file_name);
     } else {
+            cnt_error++;
         printf("#%.2d test - ERROR - file %s contented\n", global_counter_test, file_name);
     }
 }
@@ -316,6 +482,7 @@ void assert_str (char * string, const char * must_be, char * test_name){
         if (string == must_be) {
             printf("#%.2d test - passed - <%s>\n", global_counter_test, test_name);
         } else {
+            cnt_error++;
             printf("#%.2d test - ERROR - <%s>\n", global_counter_test, test_name);
             printf("\tin strlen=%4lu: |%s|\n", sizeof(string), string);
             printf("\tmust be strlen=%4lu: |%s|\n", sizeof(must_be), must_be);
@@ -325,8 +492,9 @@ void assert_str (char * string, const char * must_be, char * test_name){
         if (strncmp(string, must_be, strlen(must_be)) == 0) {
             printf("#%.2d test - passed - <%s>\n", global_counter_test, test_name);
         } else {
+            cnt_error++;
             printf("#%.2d test - ERROR - <%s>\n", global_counter_test, test_name);
-            printf("\tin strlen=%4lu: |%s|\n", strlen(string), string);
+            printf("\tin      strlen=%4lu: |%s|\n", strlen(string), string);
             printf("\tmust be strlen=%4lu: |%s|\n", strlen(must_be), must_be);
         }
     }
@@ -369,17 +537,17 @@ void push_error(int num_error)
     LOG(msg);
     // log_queue(server.fd.logger, msg); // if without exiting
 
-    if (need_exit)      gracefull_exit();
+    if (need_exit)      gracefull_exit(num_error);
     // if (must_be_close_proc) close_proc(getpid());
     // if (must_be_close_thread) close_thread(pthread_self());
 
     //todo: logging
-    // if (was_error in error)  perror("error error");
+    // if (was_error in cnt_error)  perror("cnt_error cnt_error");
 
 }
 
 
-void gracefull_exit()
+void gracefull_exit(int num_to_close)
 {
     return;
 }

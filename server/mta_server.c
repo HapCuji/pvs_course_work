@@ -86,9 +86,11 @@ void clean_up_maildir(char * clean_path){
 
                 sprintf(file_inside, "%s/", file);
                 clean_up_maildir(file_inside);
-
-                remove(file);
-                printf ("removed: %s\n", file);
+                
+                if (strcmp (file_inside, TMP_DIR_FOR_ALL_USER) != 0){
+                    remove(file);
+                    printf ("removed: %s\n", file);
+                }
             }
         }
         closedir (dir);
@@ -106,9 +108,9 @@ void clean_up_maildir(char * clean_path){
 }
 
 void create_mail_dir_cache(void){
-    char cur_folder[sizeof(MAILDIR)];
-    char * path = malloc(sizeof(MAILDIR)*sizeof(char));
-    strcpy(path, MAILDIR);
+    char cur_folder[sizeof(TMP_DIR_FOR_ALL_USER)];
+    char * path = malloc(sizeof(TMP_DIR_FOR_ALL_USER)*sizeof(char));
+    strcpy(path, TMP_DIR_FOR_ALL_USER);
     char * next_folder = NULL; // strchr(path, '/');
 
     int step = 0, status = 0;

@@ -11,8 +11,8 @@
             "program": "${workspaceFolder}/server/mta_server",
             "args": [
                 // "-remove cache"
-                "0.0.0.0",
-                "1996"
+                "127.0.0.1", // "0.0.0.0",
+                "1997"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/server",

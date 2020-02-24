@@ -64,7 +64,8 @@ void run_logger(inst_proc_t *pr)
                             sprintf(msg, "Logger(%d): accept command on close\n", getpid());
                             if( (++cnt_exit_msg) == NUM_OF_WORKER){                                     // when logger received exit/ from all threads WORKERS (and proc if exist)
                                 pr->in_work = false;
-                                printf("last cmd exit came : %s", msg);
+                                // printf("last cmd exit came : %s", msg);
+                                strcat(msg, " Last cmd exit came. ");
                             }
                         } else
                             printf("logger in cmd %s\n", msg);

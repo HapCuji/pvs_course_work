@@ -3,9 +3,9 @@
 
 // #define __DEBUG_PRINT__                 /// comment it after test!!
 
-#define TIME_FOR_WAITING_ACCEPT_SEC     10//600                  
+#define TIME_FOR_WAITING_ACCEPT_SEC     30//600                  
 #define TIME_FOR_WAITING_ACCEPT_NSEC    0
-#define TIME_FOR_WAITING_MESSAGE_SEC    11 // 20         
+#define TIME_FOR_WAITING_MESSAGE_SEC    10 // 20         
 #define TIME_FOR_WAITING_MESSAGE_NSEC   800000  // add it to top value
 #define TIME_IDLE_WORK_SEC              600     // if no one connection => our server will or restart or shut down // 10 minut?                 
 #define SELECT_TIMEOUT_LOGGER           40 //240
@@ -38,9 +38,9 @@
 
 #define PARSE_FAILED                    0xFF0000
 
-#define MAILDIR                         "/home/yoda/tcp-ip/_server_dat/"         // ""/media/sf_kde_neon/_PVS/_server_dat/"
-#define TMP_DIR_FOR_ALL_USER            "/home/yoda/tcp-ip/_server_dat/tmp/"         //"/media/sf_kde_neon/_PVS/_server_dat/tmp/" // "\\maildir\\tmp_prepare\\"       // just ? "tmp_prepare/"
-#define SERVER_LOG_FILE_ABS             "/home/yoda/tcp-ip/_server_dat/server_log.txt"
+#define MAILDIR                         "/home/yoda/tcp-ip/__server_dat/"         // ""/media/sf_kde_neon/_PVS/_server_dat/"
+#define TMP_DIR_FOR_ALL_USER            "/home/yoda/tcp-ip/__server_dat/tmp/"         //"/media/sf_kde_neon/_PVS/_server_dat/tmp/" // "\\maildir\\tmp_prepare\\"       // just ? "tmp_prepare/"
+#define SERVER_LOG_FILE_ABS             "/home/yoda/tcp-ip/__server_dat/server_log.txt"
 #define SERVER_LOG_FILE_REF             "server_log"
 
 #define NEWDIR                          "new/"                          // for save ready message for send
@@ -305,6 +305,7 @@ void set_all_client_on_close(inst_thread_t * th);
 void free_client_message(client_msg_t * client_data);
 void free_one_client_in_list(client_list_t ** last_client_list);
 void free_client_forward(char ** to);
+void get_mem_recipients(client_list_t * cl);
 
 void add_client_to_queue(th_queue_t ** cl_queue, int sock, struct sockaddr cl_addr);
 th_queue_t * pop_client_from_queue(th_queue_t ** cl_queue);
@@ -325,6 +326,7 @@ bool is_start_string(char * buf, char * must_be);
 flags_parser_t handle_HELO(client_list_t * cl);
 flags_parser_t handle_MAIL(client_list_t * cl);
 flags_parser_t handle_RCPT(client_list_t * cl);
+bool exist_in_list_to(client_list_t * cl, char * to);
 flags_parser_t handle_DATA(client_list_t * cl);
 flags_parser_t handle_QUIT(client_list_t * cl);
 flags_parser_t handle_NOOP(client_list_t * cl);
@@ -332,6 +334,9 @@ flags_parser_t handle_RSET(client_list_t * cl);
 flags_parser_t handle_VRFY(client_list_t * cl);
 bool is_good_domain_name(char * name);
 flags_parser_t handle_default(client_list_t * cl);
+
+
+void set_answer_on_cmd(client_list_t * cl, char * ans, int is_ok_cmd);  // must be improve
 
 // here file function
 char ** make_user_dir_path(char *path, char *address_to);
