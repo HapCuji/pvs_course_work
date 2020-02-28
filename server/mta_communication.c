@@ -172,7 +172,9 @@ int save_message(client_msg_t *message, bool share_name) {
                 printf("fopen(message->file_to_save %s", (message->file_to_save));
             #endif
         fp = fopen(message->file_to_save, "w");
+            #ifndef __EVOLUTION_OUTPUT__
         fprintf(fp, "Body: ");
+            #endif // __EVOLUTION_OUTPUT__
         fwrite(message->body, sizeof(char), message->body_len, fp);
        
         fclose(fp); 
@@ -196,7 +198,9 @@ int save_message(client_msg_t *message, bool share_name) {
             
 		    fp_i = fopen(user_file[TMP_DIR_ID], "w");
             fprintf(fp_i,"From: %s\r\n",message->from);
+                #ifndef __EVOLUTION_OUTPUT__
             fprintf(fp_i,"To: %s\r\n",message->to[i]);
+                #endif // __EVOLUTION_OUTPUT_
             fclose(fp_i); 
 
             status |= copy_file(message->file_to_save, user_file[TMP_DIR_ID], "a");     // add to file general "body"

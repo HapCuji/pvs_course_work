@@ -2,19 +2,17 @@
 ((
 echo open 127.0.0.1 1997
 sleep 1
-echo "EHLO my-test.ru"
+echo "helo olol-test.ru"
 sleep 1
-echo "VRFY <@my-test.ru>"
+echo "MAIL from: <kob@mail.ru>"
 sleep 1
-echo "MAIL from: <a@yandex.ru>"
-sleep 1
-echo "RCPT to: <b@mail.ru>"
+echo "rcpt to: <olo@olo1.ru> <mum@mum.ru> <tree@gogo.de><dad@get.com> <pornohub@success.t> <tree@gogo.de>"
 sleep 1
 echo "DATA"
 sleep 1
-echo "Hello, cruel world!"
+echo "WHO IS IT!?"
 sleep 1
-echo "Im sleep.."
+echo "go away! don't read here!"
 sleep 1 # without or need use just first "./r/n"
 echo "."
 sleep 5

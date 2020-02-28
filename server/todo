@@ -1,3 +1,38 @@
+1 TODO
+
+. ok error code
+. ok state in send mess
+. ok controll client data
+. ok counter error command
+
+. ok double linked list
+. ok read while recv or strlen(body + buf) < MAX_SMTP_MESSAGE
+. ok check run server
+. ok test memory
+. ok test connect
+. ok test big data
+
+
+
+.mb сделать перенос (если команда не в начале сообщения лишнюю часть выкинуть и перекопировать буфер в начало (не уверен что так делают, но мне нравится))
+.do проверить что повторный ввод команды работает корректно (все выделения не падают)
+
+.cdo разбить независимый функционал по файлам
+.cdo test client 
+
+
+2 Question
+
+1. what doing with windows and linux crlf and lf
+2. i must receive message (with /r/n only? )
+    - continiusly saved last buffer?
+    - or can clear (how i doing except TEXT in DATA )
+
+
+
+
+3 NoteBene
+
 save here
 .check whereever using malloc realloc alloc <=> must be free() 
 => all data that have pointer must be free before we free the it pointer (in other case we lost it data and can't free )
@@ -25,28 +60,3 @@ save here
         Use free() to deallocate memory that has been previously allocated by malloc() or one of its variants. 
         Always remember where the memory came from – stack or heap 
         <!!>
-
-. cdo error code
-. cdo state in send mess
-. cdo controll client data
-. cdo counter error command
-
-+. do double linked list
-. do read while recv or strlen(body + buf) < MAX_SMTP_MESSAGE
-. do check run server
-. test memory
-. test connect
-. test big data
-
-. сделать перенос (если команда не в начале сообщения лишнюю часть выкинуть и перекопировать буфер в начало (не уверен что так делают, но мне нравится))
-. проверить что повторный ввод команды работает корректно (все выделения не падают)
-. добавить еще 2 файла где будет push_err save_msg и где будут handlers
-
-. test client 
-
-
-2 Question
-1. what doing with windows and linux crlf and lf
-2. i must receive message (with /r/n only? )
-    - continiusly saved last buffer?
-    - or can clear (how i doing except TEXT in DATA )

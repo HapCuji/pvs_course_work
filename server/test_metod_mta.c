@@ -20,6 +20,9 @@ void assers_is_string_in_file(char * file_name, char * string);
 void assert_true(bool is, char * msg);
 
 void parser_test();
+void new_client_test();
+
+#define SIZE_BIG_BUF        10000 // 500000
 
 int main(){
     global_counter_test = 0;
@@ -183,13 +186,13 @@ int main(){
     char * last_file_name = malloc((SIZE_FILENAME+sizeof(TMP_NAME_TAG))*sizeof(char)); // static size
     memset(last_file_name, 0, SIZE_FILENAME);
     /*test big message*/
-    char bigbuf[500000+1];
-    memset(bigbuf, 'i', 500000*sizeof(char));
+    char bigbuf[SIZE_BIG_BUF+1];
+    memset(bigbuf, 'i', SIZE_BIG_BUF*sizeof(char));
     int j = 0, cicle = 4; // 2 Mb of data
     while (cicle--){
-        for (int i = 0; i < 500000; ){
+        for (int i = 0; i < SIZE_BIG_BUF; ){
             j = 0;
-            while((i < 500000) && (j < BUFSIZE)){
+            while((i < SIZE_BIG_BUF) && (j < BUFSIZE)){
                 cl->buf[j++] = bigbuf[i++];
             }
             cl->busy_len_in_buf = j;
@@ -209,7 +212,7 @@ int main(){
     }
 
     // WHILE IT NOT DELETED BY STATE
-    assert_str(cl->data->file_to_save, last_file_name, "file for saved data not changed in time!");
+    // assert_str(cl->data->file_to_save, last_file_name, "file for saved data not changed in time!");
     free(last_file_name);
 
 
@@ -267,7 +270,7 @@ int main(){
     
     printf("\ntest QUIT handle\n");
 
-    sprintf(cl->buf, "QUIT ");
+    sprintf(cl->buf, "QUIT");
     cl->busy_len_in_buf = strlen(cl->buf);
     flag = handle_QUIT(cl); 
     assert_str(cl->buf, REPLY_QUIT,                     "test name QUIT");
@@ -314,6 +317,8 @@ int main(){
     printf("\ntest cmd sequence by parser \n");
     parser_test();
     
+    printf("\nNew client added to list and free\n");
+    new_client_test();
     // int len = strlen(STR_HELO);
     // char * tmpbuf = malloc( (len+1)*sizeof(char));
     // memset(tmpbuf, 0x71, (len+1)*sizeof(char));
@@ -387,15 +392,35 @@ void parser_test(){
         assert_true(cl->cur_state == CLIENT_STATE_WHATS_NEWS,     "CLIENT_STATE_DATA");  
                                                   
     cl->is_writing = false;
-    sprintf(cl->buf,  "QUIT "                        );      
+    sprintf(cl->buf,  "QUIT"                        );      
     cl->busy_len_in_buf = strlen(cl->buf);
         flag_parser = parse_message_client(cl);
         assert_str(cl->buf,             REPLY_QUIT,     "REPLY_QUIT");  
 
     cl->cur_state = CLIENT_STATE_CLOSED;
-    close_client_by_state(&cl);
+    free_one_client_in_list(&cl);
 
     return;                
+}
+
+void new_client_test(){
+    struct sockaddr client_addr;                            /* для адреса клиента */
+        strcpy(client_addr.sa_data, "0.0.0.0");
+        client_addr.sa_family = 1;
+    client_list_t * cl = NULL;
+    init_new_client(&cl, 1, client_addr);    // check it (client is pointer already like in arg init() )
+
+
+    init_new_client(&cl, 1, client_addr);    // check it (client is pointer already like in arg init() )
+    init_new_client(&cl, 1, client_addr);    // check it (client is pointer already like in arg init() )
+    free_one_client_in_list(&cl);
+    init_new_client(&cl, 2, client_addr);    // check it (client is pointer already like in arg init() )
+
+
+    free_one_client_in_list(&(cl->next->next->last));
+    free_one_client_in_list(&cl);
+    free_one_client_in_list(&cl);
+
 }
 
 void assert_true(bool is, char * msg){

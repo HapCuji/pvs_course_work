@@ -54,7 +54,7 @@ void run_logger(inst_proc_t *pr)
             default: {
                 memset(msg, 0x0, sizeof(msg));
                 
-                printf("Logger(%d): i am in case(after select)\n", getpid());
+                // printf("Logger(%d): i am in case(after select)\n", getpid());
 
                 unsigned int cmd_logger_priority = LOGGER_PRIORITY;
                 // one question what i must doing when receive cmd for thread? mb return it to back by mq_send()
@@ -95,32 +95,23 @@ int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) //
     proc->fd.server_sock = fd_server_socket;
     printf("fd_server_socket == %d; fd.server_sock == %d", fd_server_socket, proc->fd.server_sock); // debug // check it
     
-    proc->in_work = true;
-    proc->n_sockets = 0;
-    proc->client = NULL;  // not have sockets
-    proc->socket_set_write = malloc(sizeof(*proc->socket_set_write));
-    proc->socket_set_read = malloc(sizeof(*proc->socket_set_read)); // not need for logger
+    proc->in_work           = true;
+    proc->n_sockets         = 0;
+    proc->client            = NULL;  // not have sockets
+    proc->socket_set_write  = malloc(sizeof(*proc->socket_set_write));
+    proc->socket_set_read   = malloc(sizeof(*proc->socket_set_read)); // not need for logger
 
     char fname_log_cmd[20];
 
     // logger message queue init
     if (proc->pid == proc->log_id) {   // process_is == LOGGER_PROC 
-        struct mq_attr attr;
-        attr.mq_flags = attr.mq_curmsgs = 0;
-        attr.mq_maxmsg = 10;
-        attr.mq_msgsize = BUFSIZE;
         
         // 0644: write, read, read  
-        sprintf(fname_log_cmd, "/process%d", NUM_LOGGER_NAME); // proc->log_id);
-        proc->fd.logger = mq_open(fname_log_cmd, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);     // can be exist
+        sprintf(fname_log_cmd, "/process%d", NUM_LOGGER_NAME);  // proc->log_id);
+        proc->fd.logger = open_queue_fd(fname_log_cmd, MODE_READ_QUEUE_NOBLOCK);
         
-        sprintf(fname_log_cmd, "/exit%d", NUM_CMD_PROC); //  proc->log_id);
-        proc->fd.cmd = mq_open(fname_log_cmd, O_EXCL | O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
-        if (proc->fd.cmd == -1){
-            // mq_close(proc->fd.cmd);
-            mq_unlink(fname_log_cmd);
-            proc->fd.cmd = mq_open(fname_log_cmd, O_EXCL | O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
-        }   
+        sprintf(fname_log_cmd, "/exit%d", NUM_CMD_PROC);        //  proc->log_id);
+        proc->fd.cmd = open_queue_fd(fname_log_cmd, MODE_READ_QUEUE_NOBLOCK);
 
     } else {    // if (process_is == WORKER_PROC) 
         // sleep(1);
@@ -147,6 +138,7 @@ int init_process(inst_proc_t * proc, int fd_server_socket, int logger_id) //
 
     return status;
 }
+
 
 // #define LOGGER_PROC         0x01 // 
 // #define WORKER_PROC         0x02 // 
@@ -244,4 +236,38 @@ int log_queue(int fd_logger, char* msg)
     int res = mq_send(fd_logger, buf, strlen(buf), 0);
     if (res == -1)  perror(msg);
     return res;
+}
+
+
+mqd_t open_queue_fd(char * fname_log_cmd, int mode){
+    struct mq_attr attr;                // need for create file (eight?)
+    attr.mq_flags = attr.mq_curmsgs = 0;
+    attr.mq_maxmsg = 10;
+    attr.mq_msgsize = BUFSIZE;
+        
+    mqd_t fd = -1;
+    if (mode == MODE_READ_QUEUE_NOBLOCK){
+        fd = mq_open(fname_log_cmd, O_RDONLY | O_NONBLOCK); // , 0644, &attr);     // can be exist
+
+        if (fd == -1){
+            mq_unlink(fname_log_cmd);
+            fd = mq_open(fname_log_cmd, O_EXCL | O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
+        }
+
+        if (fd > 0){
+            char msg [BUFSIZE];
+            while(mq_receive(fd, msg, BUFSIZE, NULL) > 0);
+        }
+
+    } else if (mode == MODE_WRITE_QUEUE_BLOCK) {  // CHECK BELOW
+        
+        fd = mq_open(fname_log_cmd, O_WRONLY); // ? , 0644, &attr);     //  will be blocked when write // | O_NONBLOCK
+
+        if (fd == -1){
+            mq_unlink(fname_log_cmd);
+            fd = mq_open(fname_log_cmd, O_EXCL | O_CREAT | O_WRONLY, 0644, &attr); // | O_NONBLOCK
+        }
+    }
+    
+    return fd;
 }

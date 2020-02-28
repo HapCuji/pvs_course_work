@@ -1,0 +1,916 @@
+#5 (no error - 3 thread 12+ msg)
+
+~/tcp-ip/pvs_course_work/server$ valgrind ./mta_server 127.0.0.1 1997  --leak-check=full --trace-children=yes
+==10182== Memcheck, a memory error detector
+==10182== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==10182== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+==10182== Command: ./mta_server 127.0.0.1 1997 --leak-check=full --trace-children=yes
+==10182== 
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e59608d_555ee.7d9efd6c
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e596078_3adec.25cf5eaa
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e596089_35f9d.6da67dd4
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e59607a_45e4b.67b04c
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e596082_4b94a.39ba052b
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e596076_d603a.6d002f56
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e596091_f0b2d.72b96f09
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e59608f_cc371.80fb0c1
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru
+removed: /home/hapcuji/tcp-ip/__server_dat/server_log.txt
+Start server listening --- press Ctrl-C to stop
+Server(10182): create proccess(10183)
+Logger pid (0) is starting (getpid == 10183)
+fd_server_socket == 3; fd.server_sock == 3Logger is success started(10183): queue created 
+Logger(10183): started work
+Worker thread(103106304): linked log queue
+Worker thread(111499008): linked log queue
+Worker thread(119891712): linked log queue
+Worker thread(128284416): linked log queue
+free_thread (119891712)
+free_thread (111499008)
+free_thread (128284416)
+free_thread (103106304)
+Server will be closed
+free_process (10183)
+Logger(10183): process killed
+==10183== 
+==10183== Process terminating with default action of signal 15 (SIGTERM)
+==10183==    at 0x52A2187: kill (syscall-template.S:78)
+==10183==    by 0x10BD1E: create_logger (mta_process.c:184)
+==10183==    by 0x109D89: main (mta_server.c:161)
+==10183== 
+==10183== HEAP SUMMARY:
+==10183==     in use at exit: 0 bytes in 0 blocks
+==10183==   total heap usage: 341 allocs, 341 frees, 698,398 bytes allocated
+==10183== 
+==10183== All heap blocks were freed -- no leaks are possible
+==10183== 
+==10183== For counts of detected and suppressed errors, rerun with: -v
+==10183== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==10182== 
+==10182== HEAP SUMMARY:
+==10182==     in use at exit: 292 bytes in 18 blocks
+==10182==   total heap usage: 539 allocs, 521 frees, 475,375 bytes allocated
+==10182== 
+==10182== LEAK SUMMARY:
+==10182==    definitely lost: 292 bytes in 18 blocks
+==10182==    indirectly lost: 0 bytes in 0 blocks
+==10182==      possibly lost: 0 bytes in 0 blocks
+==10182==    still reachable: 0 bytes in 0 blocks
+==10182==         suppressed: 0 bytes in 0 blocks
+==10182== Rerun with --leak-check=full to see details of leaked memory
+==10182== 
+==10182== For counts of detected and suppressed errors, rerun with: -v
+==10182== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+
+
+
+#error (NO ERROR VALGRIND - 3 worker, 7 connection+)# 4
+valgrind ./mta_server 127.0.0.1 1997  --leak-check=full --trace-children=yes
+==9833== Memcheck, a memory error detector
+==9833== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==9833== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+==9833== Command: ./mta_server 127.0.0.1 1997 --leak-check=full --trace-children=yes
+==9833== 
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e595c7f_46a6d.ff6bd65
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e595c7c_119e5.79dc258a
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru
+removed: /home/hapcuji/tcp-ip/__server_dat/server_log.txt
+Start server listening --- press Ctrl-C to stop
+Server(9833): create proccess(9834)
+Logger pid (0) is starting (getpid == 9834)
+fd_server_socket == 3; fd.server_sock == 3Logger is success started(9834): queue created 
+Logger(9834): started work
+Worker thread(103106304): linked log queue
+Worker thread(111499008): linked log queue
+Worker thread(119891712): linked log queue
+Worker thread(128284416): linked log queue
+Logger(9834): i am in case(after select)
+Logger(9834): i am in case(after select)
+Logger(9834): i am in case(after select)
+.......................................
+Logger(9834): i am in case(after select)
+Logger(9834): i am in case(after select)
+Logger(9834): i am in case(after select)
+free_thread (119891712)
+Logger(9834): i am in case(after select)
+Logger(9834): i am in case(after select)
+Logger(9834): i am in case(after select)
+free_thread (128284416)
+Logger(9834): i am in case(after select)
+free_thread (103106304)
+free_thread (111499008)
+free_process (9834)
+Server will be closed
+Logger(9834): process killed
+==9834== 
+==9834== Process terminating with default action of signal 15 (SIGTERM)
+==9834==    at 0x52A2187: kill (syscall-template.S:78)
+==9834==    by 0x10BD3E: create_logger (mta_process.c:184)
+==9834==    by 0x109D89: main (mta_server.c:161)
+==9834== 
+==9834== HEAP SUMMARY:
+==9834==     in use at exit: 0 bytes in 0 blocks
+==9834==   total heap usage: 344 allocs, 344 frees, 703,061 bytes allocated
+==9834== 
+==9834== All heap blocks were freed -- no leaks are possible
+==9834== 
+==9834== For counts of detected and suppressed errors, rerun with: -v
+==9834== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==9833== 
+==9833== HEAP SUMMARY:
+==9833==     in use at exit: 292 bytes in 18 blocks
+==9833==   total heap usage: 539 allocs, 521 frees, 475,373 bytes allocated
+==9833== 
+==9833== LEAK SUMMARY:
+==9833==    definitely lost: 292 bytes in 18 blocks
+==9833==    indirectly lost: 0 bytes in 0 blocks
+==9833==      possibly lost: 0 bytes in 0 blocks
+==9833==    still reachable: 0 bytes in 0 blocks
+==9833==         suppressed: 0 bytes in 0 blocks
+==9833== Rerun with --leak-check=full to see details of leaked memory
+==9833== 
+==9833== For counts of detected and suppressed errors, rerun with: -v
+==9833== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+
+#error (NO ERROR VALGRIND) # 3
+apcuji@hapcuji-UX310UAK:~/tcp-ip/pvs_course_work/server$ valgrind ./mta_server 127.0.0.1 1997  --leak-check=full --trace-children=yes
+==9523== Memcheck, a memory error detector
+==9523== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==9523== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+==9523== Command: ./mta_server 127.0.0.1 1997 --leak-check=full --trace-children=yes
+==9523== 
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new/5e595b98_2071a.83c4b15
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/new
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru
+removed: /home/hapcuji/tcp-ip/__server_dat/server_log.txt
+Start server listening --- press Ctrl-C to stop
+Server(9523): create proccess(9524)
+Logger pid (0) is starting (getpid == 9524)
+fd_server_socket == 3; fd.server_sock == 3Logger is success started(9524): queue created 
+Logger(9524): started work
+Worker thread(103106304): linked log queue
+Worker thread(111499008): linked log queue
+Worker thread(119891712): linked log queue
+Logger(9524): i am in case(after select)
+Logger(9524): i am in case(after select)
+Logger(9524): i am in case(after select)
+.......................................
+Logger(9524): i am in case(after select)
+Logger(9524): i am in case(after select)
+free_thread (111499008)
+Logger(9524): i am in case(after select)
+free_thread (119891712)
+Logger(9524): i am in case(after select)
+free_thread (103106304)
+free_process (9524)
+Logger(9524): process killed
+==9524== 
+==9524== Process terminating with default action of signal 15 (SIGTERM)
+==9524==    at 0x52A2187: kill (syscall-template.S:78)
+==9524==    by 0x10BD0E: create_logger (mta_process.c:184)
+==9524==    by 0x109D89: main (mta_server.c:161)
+==9524== 
+==9524== HEAP SUMMARY:
+==9524==     in use at exit: 0 bytes in 0 blocks
+==9524==   total heap usage: 119 allocs, 119 frees, 353,336 bytes allocated
+==9524== 
+==9524== All heap blocks were freed -- no leaks are possible
+==9524== 
+==9524== For counts of detected and suppressed errors, rerun with: -v
+==9524== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==9523== 
+==9523== HEAP SUMMARY:
+==9523==     in use at exit: 124 bytes in 6 blocks
+==9523==   total heap usage: 210 allocs, 204 frees, 286,069 bytes allocated
+==9523== 
+==9523== LEAK SUMMARY:
+==9523==    definitely lost: 124 bytes in 6 blocks
+==9523==    indirectly lost: 0 bytes in 0 blocks
+==9523==      possibly lost: 0 bytes in 0 blocks
+==9523==    still reachable: 0 bytes in 0 blocks
+==9523==         suppressed: 0 bytes in 0 blocks
+==9523== Rerun with --leak-check=full to see details of leaked memory
+==9523== 
+==9523== For counts of detected and suppressed errors, rerun with: -v
+==9523== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+
+#error # 2 (for 2 client connection ( for 1 client is 1 error)) # all error alloc inside 1 context
+
+hapcuji@hapcuji-UX310UAK:~/tcp-ip/pvs_course_work/server$ valgrind ./mta_server 127.0.0.1 1997  --leak-check=full
+==7663== Memcheck, a memory error detector
+==7663== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==7663== Using Valgrind-3.13.0 and LibVEX; rerun with -h for copyright info
+==7663== Command: ./mta_server 127.0.0.1 1997 --leak-check=full
+==7663== 
+removed: /home/hapcuji/tcp-ip/__server_dat/server_log.txt
+Start server listening --- press Ctrl-C to stop
+Server(7663): create proccess(7664)
+Logger pid (0) is starting (getpid == 7664)
+fd_server_socket == 3; fd.server_sock == 3Logger is success started(7664): queue created 
+Logger(7664): started work
+Worker thread(103106304): linked log queue
+Worker thread(111499008): linked log queue
+Worker thread(119891712): linked log queue
+Logger(7664): i am in case(after select)
+==7663== Thread 3:
+==7663== Conditional jump or move depends on uninitialised value(s)
+==7663==    at 0x10AA74: work_cicle (mta_thread.c:405)
+==7663==    by 0x10B208: run_thread_worker (mta_thread.c:105)
+==7663==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==7663==    by 0x538488E: clone (clone.S:95)
+==7663== 
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+Logger(7664): i am in case(after select)
+free_thread (111499008)
+Logger(7664): i am in case(after select)
+free_thread (119891712)
+free_process (7664)
+free_thread (103106304)
+Server will be closed
+Logger(7664): process killed
+==7664== 
+==7664== Process terminating with default action of signal 15 (SIGTERM)
+==7664==    at 0x52A2187: kill (syscall-template.S:78)
+==7664==    by 0x10BD8E: create_logger (mta_process.c:184)
+==7664==    by 0x109D89: main (mta_server.c:161)
+==7664== 
+==7664== HEAP SUMMARY:
+==7664==     in use at exit: 0 bytes in 0 blocks
+==7664==   total heap usage: 106 allocs, 106 frees, 208,083 bytes allocated
+==7664== 
+==7664== All heap blocks were freed -- no leaks are possible
+==7664== 
+==7664== For counts of detected and suppressed errors, rerun with: -v
+==7664== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==7663== 
+==7663== HEAP SUMMARY:
+==7663==     in use at exit: 124 bytes in 6 blocks
+==7663==   total heap usage: 206 allocs, 200 frees, 154,807 bytes allocated
+==7663== 
+==7663== LEAK SUMMARY:
+==7663==    definitely lost: 124 bytes in 6 blocks
+==7663==    indirectly lost: 0 bytes in 0 blocks
+==7663==      possibly lost: 0 bytes in 0 blocks
+==7663==    still reachable: 0 bytes in 0 blocks
+==7663==         suppressed: 0 bytes in 0 blocks
+==7663== Rerun with --leak-check=full to see details of leaked memory
+==7663== 
+==7663== For counts of detected and suppressed errors, rerun with: -v
+==7663== Use --track-origins=yes to see where uninitialised values come from
+==7663== ERROR SUMMARY: 2 errors from 1 contexts (suppressed: 0 from 0)
+
+
+
+# error # 1
+
+d: /home/hapcuji/tcp-ip/__server_dat/mail.ru/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/mail.ru
+removed: /home/hapcuji/tcp-ip/__server_dat/server_log.txt
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur/new/5e58c713_419da.697a5053
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur/new/5e58c6e7_4017a.450dcc1e
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur/new/5e58c683_526da.2591dc2c
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur/new
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/olo.rur
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data/new/5e58c6e7_40264.334604fc
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data/new/5e58c683_527e4.4ed7f6f5
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data/new/5e58c713_41a8e.6bc6a4a8
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data/new
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/big.data
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur/new/5e58c713_419a8.3472453c
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur/new/5e58c6e7_4013a.d48ab2b
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur/new/5e58c683_52665.2d429f50
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur/new
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/easy.rur
+removed: /home/hapcuji/tcp-ip/__server_dat/ail.rii/new
+removed: /home/hapcuji/tcp-ip/__server_dat/ail.rii/dust
+removed: /home/hapcuji/tcp-ip/__server_dat/ail.rii/cur
+removed: /home/hapcuji/tcp-ip/__server_dat/ail.rii
+Start server listening --- press Ctrl-C to stop
+Server(31531): create proccess(31532)
+Logger pid (0) is starting (getpid == 31532)
+fd_server_socket == 3; fd.server_sock == 3Logger is success started(31532): queue created 
+Logger(31532): started work
+Worker thread(111499008): linked log queue
+Worker thread(103106304): linked log queue
+Worker thread(119891712): linked log queue
+Logger(31532): i am in case(after select)
+==31531== Thread 3:
+==31531== Conditional jump or move depends on uninitialised value(s)
+==31531==    at 0x10A814: work_cicle (mta_thread.c:366)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+Logger(31532): i am in case(after select)
+==31531== Invalid write of size 8
+==31531==    at 0x10CFDA: init_new_client (mta_func_sock.c:477)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd8 is 584 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+Logger(31532): i am in case(after select)
+==31531== Invalid read of size 4
+==31531==    at 0x10A848: work_cicle (mta_thread.c:392)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705a94 is 4 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10AAB8: work_cicle (mta_thread.c:401)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd0 is 576 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D059: free_one_client_in_list (mta_func_sock.c:492)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd0 is 576 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D060: free_one_client_in_list (mta_func_sock.c:492)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd8 is 584 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D086: free_one_client_in_list (mta_func_sock.c:496)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd0 is 576 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D090: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cc8 is 568 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid write of size 8
+==31531==    at 0x10D097: free_one_client_in_list (mta_func_sock.c:502)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd8 is 584 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid write of size 8
+==31531==    at 0x10D0A2: free_one_client_in_list (mta_func_sock.c:503)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705cd0 is 576 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10CFF9: free_client_message (mta_func_sock.c:515)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705d40 is 32 bytes inside a block of size 48 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF58: init_new_client (mta_func_sock.c:459)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D007: free_client_message (mta_func_sock.c:516)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705d20 is 0 bytes inside a block of size 48 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF58: init_new_client (mta_func_sock.c:459)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D013: free_client_message (mta_func_sock.c:516)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x570e580 is 0 bytes inside a block of size 12 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D013: free_client_message (mta_func_sock.c:516)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C784: get_mail (mta_func_sock.c:343)
+==31531==    by 0x10C825: handle_MAIL (mta_func_sock.c:294)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D014: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705d28 is 8 bytes inside a block of size 48 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF58: init_new_client (mta_func_sock.c:459)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10C229: free_client_forward.part.1 (mta_func_sock.c:527)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x570e760 is 0 bytes inside a block of size 120 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C271: get_mem_recipients (mta_func_sock.c:52)
+==31531==    by 0x10CA19: handle_RCPT (mta_func_sock.c:255)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C240: free_client_forward.part.1 (mta_func_sock.c:527)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x570e710 is 0 bytes inside a block of size 10 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C240: free_client_forward.part.1 (mta_func_sock.c:527)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C784: get_mail (mta_func_sock.c:343)
+==31531==    by 0x10C9EA: handle_RCPT (mta_func_sock.c:250)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10C241: free_client_forward.part.1 (mta_func_sock.c:527)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x570e768 is 8 bytes inside a block of size 120 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C271: get_mem_recipients (mta_func_sock.c:52)
+==31531==    by 0x10CA19: handle_RCPT (mta_func_sock.c:255)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x570e760 is 0 bytes inside a block of size 120 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D021: free_client_forward (mta_func_sock.c:526)
+==31531==    by 0x10D021: free_client_message (mta_func_sock.c:517)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C271: get_mem_recipients (mta_func_sock.c:52)
+==31531==    by 0x10CA19: handle_RCPT (mta_func_sock.c:255)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D022: free_client_message (mta_func_sock.c:518)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705d30 is 16 bytes inside a block of size 48 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF58: init_new_client (mta_func_sock.c:459)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D02F: free_client_message (mta_func_sock.c:518)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x570e960 is 0 bytes inside a block of size 6,553 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D02F: free_client_message (mta_func_sock.c:518)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10C3E9: get_mem_to_body (mta_func_sock.c:225)
+==31531==    by 0x10C441: add_buf_to_body (mta_func_sock.c:214)
+==31531==    by 0x10C651: handle_DATA (mta_func_sock.c:193)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705d20 is 0 bytes inside a block of size 48 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0B1: free_one_client_in_list (mta_func_sock.c:504)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF58: init_new_client (mta_func_sock.c:459)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid read of size 8
+==31531==    at 0x10D0B2: free_one_client_in_list (mta_func_sock.c:506)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705ab0 is 32 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0BF: free_one_client_in_list (mta_func_sock.c:507)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705ef0 is 0 bytes inside a block of size 150 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10D0BF: free_one_client_in_list (mta_func_sock.c:507)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CB1A: handle_HELO (mta_func_sock.c:359)
+==31531==    by 0x10AA24: work_cicle (mta_thread.c:461)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+==31531== Invalid free() / delete / delete[] / realloc()
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Address 0x5705a90 is 0 bytes inside a block of size 592 free'd
+==31531==    at 0x4C30D3B: free (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10AB08: work_cicle (mta_thread.c:405)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531==  Block was alloc'd at
+==31531==    at 0x4C2FB0F: malloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==31531==    by 0x10CF2F: init_new_client (mta_func_sock.c:449)
+==31531==    by 0x10AE0A: work_cicle (mta_thread.c:371)
+==31531==    by 0x10AF78: run_thread_worker (mta_thread.c:105)
+==31531==    by 0x504B6DA: start_thread (pthread_create.c:463)
+==31531==    by 0x538488E: clone (clone.S:95)
+==31531== 
+^C==31531== 
+==31531== Process terminating with default action of signal 2 (SIGINT)
+==31532== 
+==31532== Process terminating with default action of signal 2 (SIGINT)
+==31531==    at 0x504CD2D: __pthread_timedjoin_ex (pthread_join_common.c:89)
+==31531==    by 0x109D7B: main (mta_server.c:194)
+==31532==    at 0x5379FF7: select (select.c:41)
+==31532==    by 0x10B4C0: run_logger (mta_process.c:47)
+==31532==    by 0x10BAE0: create_logger (mta_process.c:176)
+==31532==    by 0x109CF9: main (mta_server.c:161)
+==31532== 
+==31532== HEAP SUMMARY:
+==31532==     in use at exit: 320 bytes in 3 blocks
+==31532==   total heap usage: 113 allocs, 110 frees, 845,731 bytes allocated
+==31532== 
+==31532== LEAK SUMMARY:
+==31532==    definitely lost: 0 bytes in 0 blocks
+==31532==    indirectly lost: 0 bytes in 0 blocks
+==31532==      possibly lost: 0 bytes in 0 blocks
+==31532==    still reachable: 320 bytes in 3 blocks
+==31532==         suppressed: 0 bytes in 0 blocks
+==31532== Rerun with --leak-check=full to see details of leaked memory
+==31532== 
+==31532== For counts of detected and suppressed errors, rerun with: -v
+==31532== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+==31531== 
+==31531== HEAP SUMMARY:
+==31531==     in use at exit: 2,908 bytes in 25 blocks
+==31531==   total heap usage: 187 allocs, 169 frees, 773,812 bytes allocated
+==31531== 
+==31531== LEAK SUMMARY:
+==31531==    definitely lost: 188 bytes in 5 blocks
+==31531==    indirectly lost: 0 bytes in 0 blocks
+==31531==      possibly lost: 816 bytes in 3 blocks
+==31531==    still reachable: 1,904 bytes in 17 blocks
+==31531==         suppressed: 0 bytes in 0 blocks
+==31531== Rerun with --leak-check=full to see details of leaked memory
+==31531== 
+==31531== For counts of detected and suppressed errors, rerun with: -v
+==31531== Use --track-origins=yes to see where uninitialised values come from
+==31531== ERROR SUMMARY: 25 errors from 24 contexts (suppressed: 0 from 0)
+

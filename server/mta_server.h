@@ -2,13 +2,23 @@
 #define __MTA_SERVER_H__
 
 // #define __DEBUG_PRINT__                 /// comment it after test!!
+#define __EVOLUTION_OUTPUT__
 
-#define TIME_FOR_WAITING_ACCEPT_SEC     30//600                  
+#define NUM_OF_WORKER                       3                                   
+#define NUM_OF_THREAD                       (NUM_OF_WORKER + 1)             // +1 - it is accept thread and call workers
+// КАК сделать число с количеством занятых бит по константе..
+#define bm_WORKERS_WAIT                     0x00000007          // if anyone is true (can be 32 workers)
+#define IS_WAITING_THREAD(cnt)              ((cnt & bm_WORKERS_WAIT))     
+
+#define TIME_FOR_WAITING_ACCEPT_SEC     40 // 600                  
 #define TIME_FOR_WAITING_ACCEPT_NSEC    0
-#define TIME_FOR_WAITING_MESSAGE_SEC    10 // 20         
+#define TIME_FOR_WAITING_MESSAGE_SEC    30 // 20         
 #define TIME_FOR_WAITING_MESSAGE_NSEC   800000  // add it to top value
 #define TIME_IDLE_WORK_SEC              600     // if no one connection => our server will or restart or shut down // 10 minut?                 
-#define SELECT_TIMEOUT_LOGGER           40 //240
+#define SELECT_TIMEOUT_LOGGER           160 //240
+
+#define MAX_USER_IN                     200
+#define CMD_EXIT_USER                   "/q"
 
 #define STEP_RECIPIENTS                 15
 #define MAX_SIZE_SMTP_DATA              65536   // 64 Kb on client 
@@ -20,6 +30,11 @@
 
 #define ERROR_CREATE_NEW_SOCKET         -1                          // just general out if error
 
+#define     MODE_READ_QUEUE_NOBLOCK         0x01            // BECAUSE READ IS BY select()
+#define     MODE_WRITE_QUEUE_BLOCK          0x02            // if block is as default mode (write to queue is without select() now)
+/*TODO: WRITE TO LOGGER WITH SELECT()*/
+
+
 // create as enum type todo.?
 #define ERROR_CREATE_NEW_SOCKET_push    0xF0000001
 #define ERROR_BIND_push                 0xF0000002
@@ -28,19 +43,19 @@
 #define ERROR_SELECT                    0xF0000005
 #define ERROR_ACCEPT                    0xF0000006
 #define ERROR_FCNTL_FLAG                0xF0000007
-// below not super error
 #define ERROR_QUEUE_POP                 0xF0000008                  // error delet new element 
 #define ERROR_SOMETHING_IN_LOGIC        0xF0000009                  // for example when we receive and have is_writing == true 
 #define ERROR_WORK_WITH_FILE            0xF000000A                  // open write read
 #define ERROR_MKDIR                     0xF000000B
 #define ERROR_LINKED_CMD_LOG            0xF000000C
+#define ERROR_FAILED_INIT               0xF000000D
 
-
+// below not super error
 #define PARSE_FAILED                    0xFF0000
 
-#define MAILDIR                         "/home/yoda/tcp-ip/__server_dat/"         // ""/media/sf_kde_neon/_PVS/_server_dat/"
-#define TMP_DIR_FOR_ALL_USER            "/home/yoda/tcp-ip/__server_dat/tmp/"         //"/media/sf_kde_neon/_PVS/_server_dat/tmp/" // "\\maildir\\tmp_prepare\\"       // just ? "tmp_prepare/"
-#define SERVER_LOG_FILE_ABS             "/home/yoda/tcp-ip/__server_dat/server_log.txt"
+#define MAILDIR                         "/home/hapcuji/tcp-ip/__server_dat/"         // ""/media/sf_kde_neon/_PVS/_server_dat/"
+#define TMP_DIR_FOR_ALL_USER            "/home/hapcuji/tcp-ip/__server_dat/tmp/"         //"/media/sf_kde_neon/_PVS/_server_dat/tmp/" // "\\maildir\\tmp_prepare\\"       // just ? "tmp_prepare/"
+#define SERVER_LOG_FILE_ABS             "/home/hapcuji/tcp-ip/__server_dat/server_log.txt"
 #define SERVER_LOG_FILE_REF             "server_log"
 
 #define NEWDIR                          "new/"                          // for save ready message for send
@@ -53,8 +68,6 @@
 
 #define SERVER_ADDR                     "0.0.0.0"
 #define SMTP_PORT                       1996  
-#define NUM_OF_WORKER                   1                                   
-#define NUM_OF_THREAD                   (NUM_OF_WORKER + 1)             // +1 - it is accept thread and call workers
 
 #define TMP_DIR_ID                      1
 #define READY_DIR_ID                    0
@@ -106,7 +119,8 @@
 #define DOG_IN_MAIL                         '@'
 #define DOT_IN_MAIL                         '.'
 #define SPACE_IN_MAIL                       ' ' // MUST be false
-#define END_DATA                            "\r\n.\r\n"         // in windows too?
+#define END_DATA_INSIDE                     "\r\n.\r\n"         // in windows too?
+#define END_DATA_FIRST                      ".\r\n"         // in windows too?
 
 #define MAX_NUM_WRONG_CMD                   6
 
@@ -226,8 +240,9 @@ typedef struct general_threads_data_t{
     pthread_mutex_t * mutex_queue;      // thread with mutex can exchange with queue
     pthread_mutex_t * mutex_use_cond;   // not sure?
     pthread_cond_t * is_work;           // for thread
-    
+    pthread_cond_t * work_out;
     bool cancel_work;                   // was get command on stoping threads
+    int status;
 
     th_queue_t * sock_q;
     // bool see_queue;
@@ -303,7 +318,7 @@ int close_client_by_state(client_list_t ** rest_client);
 void set_all_client_on_close(inst_thread_t * th);
 
 void free_client_message(client_msg_t * client_data);
-void free_one_client_in_list(client_list_t ** last_client_list);
+void free_one_client_in_list(client_list_t ** __restrict__ last_client_list);
 void free_client_forward(char ** to);
 void get_mem_recipients(client_list_t * cl);
 
@@ -376,5 +391,10 @@ void push_error(int num_error);
 int init_socket(int port, char *str_addr);
 void gracefull_exit(int num_to_close);                              // ? 
 
+mqd_t open_queue_fd(char * fname_log_cmd, int mode);
+
+
+// global t_data
+// threads_var_t * t_data;
 
 #endif // __MTA_SERVER_H__

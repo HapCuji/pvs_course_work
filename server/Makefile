@@ -27,3 +27,12 @@ test_s:
 clean:
 	rm -rf *.o $(EXE) $(TEST_EXE) 
 
+## use lost mem: valgrind ./mta_server --leak-check=full
+# --track-origins=yes  : for uninit
+## valgrind --vgdb=yes --vgdb-error=1 ....
+# and then : target remote | vgdb --pid=16153
+
+# monitor help below:
+# monitor leak_check
+# monitor who_points_at (address) (len)
+# monitor get_vbits (address) (len)

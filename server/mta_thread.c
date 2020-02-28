@@ -1,5 +1,30 @@
 #include "mta_server.h"
 
+/**/
+
+static inline void unset_worker_wait(int * cnt){
+    int one_work = 0;
+    for(int shift_i = 0; shift_i < NUM_OF_WORKER; shift_i++) {
+        one_work = 0x01 << shift_i;
+        if (*cnt & (one_work)){
+            *cnt &= ~one_work;
+            break;                          // break for only one worker unset
+        }
+    }
+}
+
+static inline void set_worker_wait(int * cnt){
+    int one_work = 0;
+    for(int shift_i = 0; shift_i < NUM_OF_WORKER; shift_i++) {
+        one_work = 0x01 << shift_i;
+        if (!(*cnt & (one_work))){ 
+            *cnt |= one_work;
+            break;                          // break for only one worker unset
+        }
+    }
+}
+/**/
+
 // like proc only thread
 int init_thread(inst_thread_t * th, threads_var_t * t_data)
 {
@@ -25,37 +50,31 @@ int init_thread(inst_thread_t * th, threads_var_t * t_data)
     char fname_cmd[20];
     /* Here logger must be already runing */
     sprintf(fname_cmd, "/process%d", NUM_LOGGER_NAME);
-    th->fd.logger = mq_open(fname_cmd, O_WRONLY);                      // for send message to logger
+    th->fd.logger = open_queue_fd(fname_cmd, MODE_WRITE_QUEUE_BLOCK);
 
-    struct mq_attr attr;
-        attr.mq_flags = attr.mq_curmsgs = 0;
-        attr.mq_maxmsg = 10;
-        attr.mq_msgsize = BUFSIZE;
     sprintf(fname_cmd, "/exit%d", NUM_CMD_THREAD);                      //  .. , th->log_id);
-    th->fd.cmd = mq_open(fname_cmd, O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
-        if (th->fd.cmd == -1){
-            // mq_close(th->fd.cmd);                                    // how close -1 ?
-            mq_unlink(fname_cmd);
-            th->fd.cmd = mq_open(fname_cmd, O_EXCL | O_CREAT | O_RDONLY | O_NONBLOCK, 0644, &attr);
-        }   
-    // sprintf(fname_cmd, "/exit%d", NUM_CMD_NAME);
-    // th->fd.cmd = mq_open(fname_cmd, O_RDONLY);                         // for receive command
+    th->fd.cmd = open_queue_fd(fname_cmd, MODE_READ_QUEUE_NOBLOCK);
 
-    if (th->fd.logger == -1 || th->fd.cmd == -1) {
-        perror("mq_open() failed in thread");
+    if (th->fd.logger == -1) {
+        perror("mq_open(logger) failed in thread");
+        th->in_work = false;
+        t_data->gen.cancel_work = true;
+        return ERROR_LINKED_CMD_LOG;                                // can be push_error()
+    } else if (th->fd.cmd == -1) {
+        perror("mq_open(cmd) failed in thread");
         th->in_work = false;
         t_data->gen.cancel_work = true;
         return ERROR_LINKED_CMD_LOG;                                // can be push_error()
     } else
-        printf("Worker thread(%lu): linked log queue\n", pthread_self());
+        printf("Worker thread(%lu): linked log queue\n", th->tid);
 
 
-    pthread_mutex_lock(t_data->gen.mutex_queue);                    // check it !? must i for all threads copy mutex data, but with it mutex they can get the really general data?
+    // pthread_mutex_lock(t_data->gen.mutex_queue);                    // check it !? must i for all threads copy mutex data, but with it mutex they can get the really general data?
     // th->gen = malloc(sizeof(general_threads_data_t));
     //the same :?: *th->gen = t_data->gen; // ? // as i know we does not sould malloc if we assignment address already contented the data
     th->gen = &(t_data->gen);                     // general data mutex cond and the one queue for all thread
     // now we not malloc mem => we can't call free(th->gen)
-    pthread_mutex_unlock(t_data->gen.mutex_queue);
+    // pthread_mutex_unlock(t_data->gen.mutex_queue);
 
     return status;
 }
@@ -64,7 +83,7 @@ int init_thread(inst_thread_t * th, threads_var_t * t_data)
 void free_thread(inst_thread_t * th){
     if (th != NULL) {
         
-        printf("free_thread (%d)\n", (int)th->tid);
+        printf("free_thread (%lu)\n", th->tid);
         free(th->socket_set_read);
         free(th->socket_set_write);
         // free(th->gen);                                   // we not alloc mem for it see in main()
@@ -107,6 +126,19 @@ void * run_thread_controller(void * t_data){
     return NULL;     
 }
 
+/*can somthing so work?*/
+int init_stdin_fd(void){
+    int fd = 0;
+    fd =  fileno(stdin);
+    if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK) < 0){ 
+        push_error(ERROR_FCNTL_FLAG);
+        fd = -1;
+    } else {
+        send(fd, "ololo\n", 4, 0);
+    }
+    return fd;
+}
+
 #define NUM_DEFAULT_FD_WORKER           0 // 1 // how much i have :: cmd
 #define NUM_DEFAULT_FD_CONTROLLER       2 // how much i have :: cmd, logger (fd not in set, it use another proc) /(OR) server socket
 
@@ -126,10 +158,12 @@ void thread_analitic_cicle(inst_thread_t * th)
     struct sockaddr client_addr;                        /* для адреса клиента */
     socklen_t addrlen = sizeof(client_addr);            /* размер структуры с адресом */
     int cl_socket;
+    int fd_stdin = init_stdin_fd();
     
     struct timeval timeout;
     int cnt_closed_cmd = 0;
     bool close_other_threads = false;
+    bool can_closed_by_time = false;
 
     while(th->in_work){
 
@@ -137,9 +171,11 @@ void thread_analitic_cicle(inst_thread_t * th)
         FD_ZERO(th->socket_set_write);
         FD_SET(th->fd.server_sock, th->socket_set_read);   // the same server socket for all 
         FD_SET(th->fd.cmd, th->socket_set_read);           // the same socket for all threads and proc
+        if (fd_stdin > 0)
+            FD_SET(fd_stdin, th->socket_set_read);           
 
         timeout.tv_sec  = close_other_threads? 0 : TIME_FOR_WAITING_ACCEPT_SEC;          
-        timeout.tv_usec = close_other_threads? 1 : TIME_FOR_WAITING_ACCEPT_NSEC;        
+        timeout.tv_usec = close_other_threads? 10 : TIME_FOR_WAITING_ACCEPT_NSEC;        
         
         int flag_sk = select(FD_SETSIZE, th->socket_set_read, th->socket_set_write, NULL, &timeout); // (FD_SETSIZE OR n_socket+1,
         if (flag_sk == -1){ 
@@ -153,7 +189,8 @@ void thread_analitic_cicle(inst_thread_t * th)
                 if (!close_other_threads){
                     sprintf(logbuf, " Time out for controller thread.");
                     log_queue(th->fd.logger, logbuf);
-                    gracefull_exit(NUM_CMD_THREAD);                 // threads is first cancel
+                    if (can_closed_by_time)
+                        gracefull_exit(NUM_CMD_THREAD);                 // threads is first cancel
                 }
             
         }else{ 
@@ -190,9 +227,38 @@ void thread_analitic_cicle(inst_thread_t * th)
                 }
             }
 
+            // cmd from user >? check work
+            if (FD_ISSET(fd_stdin, th->socket_set_read)) {
+                char user_msg[MAX_USER_IN]; // 200 < 512
+                int len_recieved = recv(fd_stdin, user_msg, sizeof(user_msg), 0);  // 1
+                if (len_recieved < 0) {
+                    if (errno == EWOULDBLOCK){
+                        // NEED TRY AGAIN - WAIT NEXT session
+                    } else {
+                    }
+                    // continue;                                        // can not be
+                } else if (len_recieved == 0) {
+                    // continue;                                        // can not be
+                }else{
+                    sprintf(logbuf, "user cmd is: %s", user_msg);
+                    log_queue(th->fd.logger, logbuf);
+                    if (strncmp(user_msg, CMD_EXIT_USER, strlen(CMD_EXIT_USER))){
+                        close_other_threads = true;
+                        gracefull_exit(NUM_CMD_THREAD);                 // threads is first cancel
+                    }
+                }
+            }
+
         }
 
-        pthread_mutex_lock(th->gen->mutex_queue);
+        int status_lock = 0;
+        if ((status_lock = pthread_mutex_trylock(th->gen->mutex_queue)) == EBUSY) {
+           status_lock = pthread_mutex_lock(th->gen->mutex_queue);
+        } 
+        if (status_lock != EDEADLK && status_lock != 0){
+            continue;                                                               // was something wrong
+        }
+        
 
         if (is_new_client){
             add_client_to_queue(&(th->gen->sock_q), cl_socket, client_addr);
@@ -209,13 +275,23 @@ void thread_analitic_cicle(inst_thread_t * th)
             must_be_signal_to_thread = true;
             th->gen->cancel_work = true;
             
-            if (cnt_closed_cmd >= NUM_OF_THREAD)
+            if (cnt_closed_cmd >= NUM_OF_THREAD){
                 th->in_work = false;
+                continue;
+            }
         }
 
         if (must_be_signal_to_thread){
-            pthread_cond_signal(th->gen->is_work);
+            if (IS_WAITING_THREAD(th->gen->status)){
+                pthread_cond_signal(th->gen->is_work);
+                // below usually be while(!some_condition); timewait?
+                pthread_cond_wait(th->gen->work_out, th->gen->mutex_queue); // it is nessesarry for the mutex unlock the thread (that lock the mutex!)
+            }
+        } else {
+            if (th->gen->status == bm_WORKERS_WAIT)
+                can_closed_by_time = true;
         }
+
 
         pthread_mutex_unlock(th->gen->mutex_queue);
 
@@ -246,7 +322,7 @@ void work_cicle(inst_thread_t * th)
 {
     // init data thread
     struct timeval timeout;
-    struct timespec timecond;
+    // struct timespec timecond;
     th->n_sockets = NUM_DEFAULT_FD_WORKER; // NUM_DEFAULT_FD;                          // only cmd without server_socket
     char logbuf[BUFSIZE];                                   // we will recieve already in client struct
     
@@ -263,7 +339,14 @@ void work_cicle(inst_thread_t * th)
         timeout.tv_sec = TIME_FOR_WAITING_MESSAGE_SEC;          // x sec +
         timeout.tv_usec = TIME_FOR_WAITING_MESSAGE_NSEC;        // 800000;  // + 0.8 sec
         
-        pthread_mutex_lock(th->gen->mutex_queue);
+        // bool was_waiting_signal = false;                     // i can't wait for local (can be case when broadcast or anything else)
+        int status_lock = 0;
+        if ((status_lock = pthread_mutex_trylock(th->gen->mutex_queue)) == EBUSY) {
+            status_lock = pthread_mutex_lock(th->gen->mutex_queue);
+        } 
+        if (status_lock != EDEADLK && status_lock != 0) {
+            continue;                                                               // was something wrong
+        }
 
         /*Осторожно! 
         если очередь не пуста, но мы уже имеем работу, мы можем взять себе еще клиентов. 
@@ -282,9 +365,13 @@ void work_cicle(inst_thread_t * th)
             if ((th->gen->sock_q != NULL) || (th->n_sockets == NUM_DEFAULT_FD_WORKER)){
                 /*if we can get new client *//*or*//*if we don't have work*/
                 while((th->gen->sock_q == NULL) && (th->gen->cancel_work == false)){
-                    timecond.tv_sec     = timeout.tv_sec + 2;      // 2 sec
-                    timecond.tv_nsec    = timeout.tv_usec * 1000; // nsec
-                    pthread_cond_timedwait(th->gen->is_work, th->gen->mutex_queue, &timecond);            // block any work thread while we do't have more client
+                    // timecond.tv_sec     = time(NULL) + 2;      // 2 sec
+                    // timecond.tv_nsec    = 0; // nsec
+
+                    // was_waiting_signal = true;
+                    set_worker_wait(&(th->gen->status));
+
+                    pthread_cond_wait(th->gen->is_work, th->gen->mutex_queue); // , &timecond);            // block any work thread while we do't have more client
                 }
 
                 if (th->gen->cancel_work){
@@ -298,6 +385,12 @@ void work_cicle(inst_thread_t * th)
                     } else
                         push_error(ERROR_QUEUE_POP);
                 }
+
+                if (IS_WAITING_THREAD(th->gen->status)){                // was_waiting_signal
+                    // was_waiting_signal = false;
+                    unset_worker_wait(&(th->gen->status));
+                    pthread_cond_signal(th->gen->work_out);
+                }
             }
             // else if (th->gen->sock_q->next == NULL && th->n_sockets != 0) 
             //      we already have work => do it;
@@ -306,8 +399,13 @@ void work_cicle(inst_thread_t * th)
         pthread_mutex_unlock(th->gen->mutex_queue);
 
 
+
+        FD_ZERO(th->socket_set_read);                      // do we should free last value?
+        FD_ZERO(th->socket_set_write);
+        // FD_SET(th->fd.cmd, th->socket_set_read);           // the same socket for all threads and proc
+
         if (th->in_work == false){
-            sprintf(logbuf, "to Worker(%d): came command on close.", (int) th->tid);
+            sprintf(logbuf, "to Worker(%lu): came command on close.", th->tid);
             log_queue(th->fd.logger, logbuf);
             set_all_client_on_close(th);
         } else {
@@ -320,23 +418,17 @@ void work_cicle(inst_thread_t * th)
                 init_new_client(&th->client, cl_socket, client_addr);    // check it (client is pointer already like in arg init() )
                 th->n_sockets += 1;
 
-                if (th->client->is_writing) FD_SET(th->client->fd, th->socket_set_write); 
-                else                        FD_SET(th->client->fd, th->socket_set_read);
-
-                sprintf(logbuf, "new client_sk accepted %s.", client_addr.sa_data);
+                sprintf(logbuf, "new client_sk (by %ld) accepted %d.", th->tid, cl_socket);
                 log_queue(th->fd.logger, logbuf);
 
                 cl_socket = 0;
             }
         }
 
-        FD_ZERO(th->socket_set_read);                      // do we should free last value?
-        FD_ZERO(th->socket_set_write);
-        // FD_SET(th->fd.cmd, th->socket_set_read);           // the same socket for all threads and proc
         
         // every new cicle we will clear all sets, because it is more easy then update sets, 
         // if was deleted we just clear by state - fd, close fd, free all data fd
-        for (client_list_t * i = th->client; i != NULL; /*i = i->next*/){
+        for (client_list_t * i = th->client; i != NULL; /*i = i->next  (switch inside free)*/){      // counter i++ try?
 
             if (i->cur_state != CLIENT_STATE_CLOSED){
                 /*C code notebene: as i know when i assign from pointer 
@@ -347,13 +439,18 @@ void work_cicle(inst_thread_t * th)
                 else                FD_SET(i->fd, th->socket_set_read);
                 i = i->next;
             } else {
-                if (i->next != NULL) {                      // if not last client::
+                sprintf(logbuf, "Was disconnected. shift = %ld.", (th->client-i));
+                log_queue(th->fd.logger, logbuf);
+                free_one_client_in_list(&(i));
+                /*if (i->next != NULL) {                      // if not last client::
                     i = i->next;
-                    close_client_by_state(&(i->last));         // after it, "i" will be content last (prev == (i-1)) value, 
+                    free_one_client_in_list(&(i->last));         // after it, "i" will be content last (prev == (i-1)) value, 
                 } else                                      
-                    close_client_by_state(&i);               // here i == NULL (was deleted last client) 
-                
+                    free_one_client_in_list(&i);               // here i == NULL (was deleted last client) 
+                */
                 th->n_sockets -= 1;
+                if (th->n_sockets == NUM_DEFAULT_FD_WORKER)
+                    th->client = NULL;                      // check it:!
             }                                               
         }
 
@@ -409,6 +506,12 @@ void work_cicle(inst_thread_t * th)
 
                             flags_parser_t flag_parser = parse_message_client(cl_i);                                            // 3
 
+                            // .. cl_i->is_writing = true; // must be inside parser check it
+                            if (cl_i->busy_len_in_buf < BUFSIZE-1){
+                                sprintf(logbuf, "message %lu byte receive form socket fd=%d.", cl_i->busy_len_in_buf, cl_i->fd);
+                                log_queue(th->fd.logger, logbuf);
+                            }
+
                             if (flag_parser == ANSWER_READY_to_SEND  || flag_parser == RECEIVED_ERROR_CMD/*|| flag_parser == RECEIVED_PART_IN_DATA*/) {             // 4 
                                 cl_i->busy_len_in_buf = 0;
                                 continue_recv = false;
@@ -421,9 +524,6 @@ void work_cicle(inst_thread_t * th)
                                 cl_i->busy_len_in_buf = 0;
                             }
                             
-                            // .. cl_i->is_writing = true; // must be inside parser check it
-                            sprintf(logbuf, "message %lu byte receive form socket %s.", cl_i->busy_len_in_buf, cl_i->addr.sa_data);
-                            log_queue(th->fd.logger, logbuf);
                         }
                     }
                 }
@@ -442,7 +542,8 @@ void work_cicle(inst_thread_t * th)
                             cl_i->is_writing = false;                                           // THEN will be read from fd
                         } else {
                             /* main part */
-                            if ( send(cl_i->fd, cl_i->buf, strlen(cl_i->buf), flag_send) < 0){
+                            int len = strlen(cl_i->buf);
+                            if ( send(cl_i->fd, cl_i->buf, len, flag_send) < 0){
                                 if (errno != EWOULDBLOCK)
                                     cl_i->cur_state = CLIENT_STATE_CLOSED;
                                 continue;
@@ -482,36 +583,49 @@ void work_cicle(inst_thread_t * th)
 
 }
 
-
+// #define _GNU_SOURCE
 
 void init_data_thread( threads_var_t * t_data, server_t server)
-{
-    
-    pthread_mutex_t can_use_general_th_data;
-    pthread_mutex_t can_see_condition;
-    pthread_cond_t is_work;
-    pthread_mutex_init(&can_use_general_th_data, NULL);
-    pthread_mutex_init(&can_see_condition , NULL);
-    pthread_cond_init(&is_work, NULL);
+{   
+    int status = 0;
+    pthread_mutexattr_t * Attr = malloc(sizeof(pthread_mutexattr_t));
+    status |= pthread_mutexattr_init(Attr);
+    pthread_mutexattr_settype(Attr, PTHREAD_MUTEX_RECURSIVE_NP);
+
+    static pthread_mutex_t can_use_general_th_data;
+    static pthread_mutex_t can_see_condition;
+    static pthread_cond_t work_out;          // for work thread thad allow to return mutex
+    static pthread_cond_t is_work;
+    status |= pthread_mutex_init(&can_use_general_th_data, Attr);
+    status |= pthread_mutex_init(&can_see_condition , NULL);
+    status |= pthread_cond_init(&is_work, NULL);
+    status |= pthread_cond_init(&work_out, NULL);
 
     t_data->gen.mutex_queue         = &can_use_general_th_data;
     t_data->gen.mutex_use_cond      = &can_see_condition;
-    t_data->gen.is_work             = &is_work; 
+    t_data->gen.is_work             = &is_work;
+    t_data->gen.work_out            = &work_out; 
     t_data->gen.sock_q              = NULL;                     // malloc(sizeof(*t_data->gen.sock_q)); //  malloc(sizeof(th_queue_t))
     // t_data->gen.sock_q->next        = NULL;
     t_data->gen.cancel_work         = false;
-
+    t_data->gen.status              = 0;
     // for i = 0; i < NUM_OF_WOREKER + 1; i++
     t_data->srv_sk = server.socket;                             //[i]
     t_data->log_id = server.log_id;                             //[i]
-        
+
+
+    if (status != 0)
+        push_error(ERROR_FAILED_INIT);
+
 }
 
 void destroy_data_thread(threads_var_t * t_data)
 {
+    // pthread_mutexattr_destroy();
     pthread_mutex_destroy(t_data->gen.mutex_queue);
     pthread_mutex_destroy(t_data->gen.mutex_use_cond);
     pthread_cond_destroy(t_data->gen.is_work);
+    pthread_cond_destroy(t_data->gen.work_out);
 
     free_thread_queue_sock(t_data->gen.sock_q);
     free(t_data);                                   // here will be free(t_data->gen) if "t_data->gen" is static 

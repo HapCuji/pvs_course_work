@@ -171,7 +171,12 @@ flags_parser_t handle_DATA(client_list_t * cl){
         cl->is_writing = true;
 
     } else {                                    // already inside
-        char * end = strstr(cl->buf, END_DATA);
+        char * end = strstr(cl->buf, END_DATA_INSIDE);
+        if (end == NULL){
+            if (strncmp(cl->buf, END_DATA_FIRST, strlen(END_DATA_FIRST)) == 0){
+                end = cl->buf;              
+            }
+        }
 
         if (end != NULL){
             add_buf_to_body(cl, end);
@@ -482,19 +487,24 @@ int init_new_client(client_list_t **client_list_p, int client_sock, struct socka
     return status;
 }
 
+/*delet from list the last element, and switch on ->next !!!*/
+void free_one_client_in_list( client_list_t ** __restrict__ last_client_list){
+    client_list_t * closed_client;  // equivalent i
 
-void free_one_client_in_list(client_list_t ** last_client_list){
-    client_list_t * closed_client;
-
-    while(*last_client_list != NULL){
+    if(*last_client_list != NULL){
         closed_client          = *last_client_list;
 
         if (closed_client->next != NULL){
             closed_client->next->last = closed_client->last;
         }
+        if (closed_client->last != NULL){
+            closed_client->last->next = closed_client->next;
+        }
 
         *last_client_list    = closed_client->next;             // free we can from just pointer (that contented a address in mem map)
                                                                 // but we can't assign like here (it assign will be for local pointer, not global list!)
+        // if ((closed_client->next == NULL) && (closed_client->last == NULL))
+        //     last_client_list = NULL;                            // now &i = NULL; (see outside)
 
         closed_client->last = NULL;
         closed_client->next = NULL;
@@ -502,7 +512,9 @@ void free_one_client_in_list(client_list_t ** last_client_list){
 
         if (closed_client->hello_name != NULL)  
             free(closed_client->hello_name);
-        free(closed_client);
+        free(closed_client);                                // free(*last_client_list);
+        
+        closed_client       = NULL;
     }
 }
 
@@ -536,6 +548,7 @@ void free_client_forward(char ** to){
 //     free(closed_client);
 // } // we will use close by state only !
 
+// now it func in not using // 
 int close_client_by_state(client_list_t ** closed_client_i){
     int state = 0;
 

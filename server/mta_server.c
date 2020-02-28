@@ -109,15 +109,16 @@ void clean_up_maildir(char * clean_path){
 
 void create_mail_dir_cache(void){
     char cur_folder[sizeof(TMP_DIR_FOR_ALL_USER)];
-    char * path = malloc(sizeof(TMP_DIR_FOR_ALL_USER)*sizeof(char));
-    strcpy(path, TMP_DIR_FOR_ALL_USER);
-    char * next_folder = NULL; // strchr(path, '/');
+    char * path = TMP_DIR_FOR_ALL_USER ;    // malloc(sizeof(TMP_DIR_FOR_ALL_USER)*sizeof(char));
+                                            // strcpy(path, TMP_DIR_FOR_ALL_USER);
+    char * next_folder = NULL;              // strchr(path, '/');
 
     int step = 0, status = 0;
     while ( (next_folder = strchr(path+step, '/')) != NULL)
     {
         step = next_folder - path + 1;
-        strncpy(cur_folder, path, (step));
+        memcpy(cur_folder, path, (step));
+        *(cur_folder+step) = '\0';
         status = mkdir(cur_folder, GENERAL_DIR_MODE);
         if (status < 0){
             if (errno != EEXIST){
@@ -128,21 +129,21 @@ void create_mail_dir_cache(void){
             printf("created dir %s \n", cur_folder);
         }
     }
-    free(path);
+    // free(path);
 }
 
 /* now here will be only one process */
 static server_t server; // do really need static 
-#define COMMAND_SERVER_CLEAR_CACHE                  "-remove cache"
+#define COMMAND_SERVER_CLEAR_CACHE                  "-remove-cache"
 
 int main(int argc, char**argv)
 {
-    if (argc != 3) {
+    if (argc < 3) {
         if ((argc == 2) && (strcmp(argv[1], COMMAND_SERVER_CLEAR_CACHE) == 0)){
             create_mail_dir_cache();
             clean_up_maildir(MAILDIR);
         } else {
-            printf("Usage: \nmta_server <addr> <port>\nExample: mta_server 0.0.0.0  1996\n");
+            printf("Usage: \nmta_server <addr> <port>\nExample: mta_server 0.0.0.0  1997\n");
             printf("Usage: \nmta_server -<cmd>\nExample: mta_server %s\n", COMMAND_SERVER_CLEAR_CACHE);
         }
         exit(0);
@@ -154,7 +155,10 @@ int main(int argc, char**argv)
     if (port <= 0 || port >= 0xFFFF) perror("range"); // need set server range?
 
     create_mail_dir_cache();
-    clean_up_maildir(MAILDIR);
+    if ((argc == 4) && (strlen(argv[3]) >= 3) && (strncmp(argv[3], "-cc", 3) == 0) ){
+        printf("\nClean up dir!\n");
+        clean_up_maildir(MAILDIR);
+    }
 
     server.socket = init_socket(port, argv[1]);
     server.log_id = create_logger(server.socket);

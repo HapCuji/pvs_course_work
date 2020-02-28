@@ -42,7 +42,8 @@
                 "-o",
                 "${workspaceFolder}/server/mta_server",
                 "-lrt",
-                "-lpthread",
+                // "-lpthread",
+                "-pthread",
                 "-lresolv"
             ],
             "options": {
